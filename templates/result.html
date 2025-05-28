@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold">Assessment Results</h2>
+            <a href="/" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Grade Another Note
+            </a>
+        </div>
+        
+        <!-- Overall Score -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-6">
+            <div class="text-center">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">Overall Quality Score</h3>
+                <div class="text-4xl font-bold text-blue-600 mb-2">
+                    {{ result.hybrid_score }}/5.0
+                </div>
+                <div class="text-2xl font-semibold 
+                    {% if result.overall_grade == 'A' %}text-green-600
+                    {% elif result.overall_grade == 'B' %}text-blue-600
+                    {% elif result.overall_grade == 'C' %}text-yellow-600
+                    {% elif result.overall_grade == 'D' %}text-orange-600
+                    {% else %}text-red-600{% endif %}">
+                    Grade: {{ result.overall_grade }}
+                </div>
+            </div>
+        </div>
+        
+        <!-- PDQI-9 Scores -->
+        <div class="mb-6">
+            <h3 class="text-xl font-semibold mb-4">PDQI-9 Dimension Scores</h3>
+            <div class="grid md:grid-cols-3 gap-4">
+                {% for dimension, score in result.pdqi_scores.items() %}
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium capitalize">{{ dimension.replace('_', ' ') }}</span>
+                        <span class="text-lg font-bold 
+                            {% if score >= 4 %}text-green-600
+                            {% elif score >= 3 %}text-blue-600
+                            {% elif score >= 2 %}text-yellow-600
+                            {% else %}text-red-600{% endif %}">
+                            {{ score }}/5
+                        </span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                        <div class="bg-blue-600 h-2 rounded-full" style="width: {{ (score/5)*100 }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="mt-4 text-center">
+                <span class="text-lg font-semibold">PDQI-9 Average: {{ result.pdqi_average }}/5.0</span>
+            </div>
+        </div>
+        
+        <!-- Heuristic Analysis -->
+        <div class="mb-6">
+            <h3 class="text-xl font-semibold mb-4">Heuristic Analysis</h3>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h4 class="font-medium mb-2">Quality Metrics</h4>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span>Length Score:</span>
+                                <span class="font-semibold">{{ result.heuristic_analysis.length_score }}/5.0</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Redundancy Score:</span>
+                                <span class="font-semibold">{{ result.heuristic_analysis.redundancy_score }}/5.0</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Structure Score:</span>
+                                <span class="font-semibold">{{ result.heuristic_analysis.structure_score }}/5.0</span>
+                            </div>
+                            <hr class="my-2">
+                            <div class="flex justify-between font-semibold">
+                                <span>Composite Score:</span>
+                                <span>{{ result.heuristic_analysis.composite_score }}/5.0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h4 class="font-medium mb-2">Document Statistics</h4>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span>Word Count:</span>
+                                <span class="font-semibold">{{ result.heuristic_analysis.word_count }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Character Count:</span>
+                                <span class="font-semibold">{{ result.heuristic_analysis.character_count }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Factuality Analysis -->
+        <div class="mb-6">
+            <h3 class="text-xl font-semibold mb-4">Factuality Analysis</h3>
+            <div class="bg-gray-50 rounded-lg p-4">
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-blue-600">
+                            {{ result.factuality_analysis.entailment_score }}
+                        </div>
+                        <div class="text-sm text-gray-600">Entailment Score</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-blue-600">
+                            {{ result.factuality_analysis.consistency_score }}
+                        </div>
+                        <div class="text-sm text-gray-600">Consistency Score</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-blue-600">
+                            {{ result.factuality_analysis.claims_checked }}
+                        </div>
+                        <div class="text-sm text-gray-600">Claims Checked</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Scoring Weights -->
+        <div class="bg-blue-50 rounded-lg p-4">
+            <h4 class="font-medium mb-2">Hybrid Scoring Weights</h4>
+            <div class="grid grid-cols-3 gap-4 text-sm">
+                <div class="text-center">
+                    <div class="font-semibold">PDQI-9</div>
+                    <div>{{ (result.weights_used.pdqi_weight * 100)|int }}%</div>
+                </div>
+                <div class="text-center">
+                    <div class="font-semibold">Heuristics</div>
+                    <div>{{ (result.weights_used.heuristic_weight * 100)|int }}%</div>
+                </div>
+                <div class="text-center">
+                    <div class="font-semibold">Factuality</div>
+                    <div>{{ (result.weights_used.factuality_weight * 100)|int }}%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
