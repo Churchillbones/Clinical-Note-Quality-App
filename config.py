@@ -7,6 +7,7 @@ class Config:
     AZURE_OPENAI_ENDPOINT = os.environ.get('AZ_OPENAI_ENDPOINT')
     AZURE_OPENAI_KEY = os.environ.get('AZ_OPENAI_KEY')
     AZURE_O3_DEPLOYMENT = os.environ.get('AZ_O3_DEPLOYMENT', 'gpt-o3')
+    AZURE_OPENAI_API_VERSION = os.environ.get('AZ_OPENAI_API_VERSION', '2024-02-15-preview')
     
     # Model Configuration
     TEMPERATURE = 0.0

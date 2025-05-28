@@ -1,6 +1,6 @@
 # Clinical Note Quality Assessment
 
-A Flask application that grades clinical notes using the PDQI-9 rubric with Azure OpenAI O3, combined with heuristic analysis and factuality checking.
+A Flask application (`app.py`) that grades clinical notes using the PDQI-9 rubric with Azure OpenAI O3, combined with heuristic analysis and factuality checking.
 
 ## Features
 
@@ -19,7 +19,7 @@ A Flask application that grades clinical notes using the PDQI-9 rubric with Azur
 # Clone or download the project
 cd note-quality-app
 
-# Run setup script
+# Run setup script (prepares Python virtual environment and installs dependencies)
 chmod +x setup.sh
 ./setup.sh
 
@@ -40,7 +40,8 @@ nano .env
 Required environment variables:
 - `AZ_OPENAI_ENDPOINT`: Your Azure OpenAI endpoint URL
 - `AZ_OPENAI_KEY`: Your Azure OpenAI API key
-- `AZ_O3_DEPLOYMENT`: Your O3 deployment name (default: gpt-o3)
+- `AZ_O3_DEPLOYMENT`: Your O3 deployment name (e.g., `gpt-o3`, `gpt-4`)
+- `AZURE_OPENAI_API_VERSION`: Your Azure OpenAI API version (e.g., `2024-02-15-preview`)
 
 ### 3. Run Application
 
@@ -59,8 +60,9 @@ The application will be available at `http://localhost:5000`
 ### Web Interface
 
 1. Navigate to `http://localhost:5000`
-2. Enter your clinical note in the text area
-3. Click "Grade Note" to get comprehensive assessment
+2. Enter your clinical note in the "Clinical Note" text area.
+3. Optionally, paste the encounter transcript into the "Encounter Transcript" text area for factuality checking.
+4. Click "Grade Note" to get a comprehensive assessment.
 
 ### REST API
 
@@ -98,9 +100,8 @@ The application will be available at `http://localhost:5000`
     "character_count": 1456
   },
   "factuality_analysis": {
-    "entailment_score": 0.75,
-    "consistency_score": 0.75,
-    "claims_checked": 5
+    "consistency_score": 4.0,  # Example score
+    "claims_checked": 1        # Will be 0 if no transcript, 1 if transcript provided
   },
   "hybrid_score": 3.67,
   "overall_grade": "B",
@@ -147,6 +148,8 @@ The final score combines three assessment methods:
 
 ## Development
 
+The application uses the `openai` Python library version 1.x.x for Azure OpenAI integration, ensuring compatibility with the latest SDK features.
+
 ### Adding New Features
 
 1. **New Heuristics**: Add functions to `grading/heuristics.py`
@@ -175,15 +178,12 @@ mypy grading/
 ### Common Issues
 
 1. **Azure OpenAI Connection Errors**
-   - Verify endpoint URL and API key in `.env`
-   - Check deployment name matches your Azure resource
-   - Ensure sufficient quota for O3 model
+   - Verify all Azure OpenAI related environment variables (`AZ_OPENAI_ENDPOINT`, `AZ_OPENAI_KEY`, `AZ_O3_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION`) are correctly set in your `.env` file.
+   - Check deployment name matches your Azure resource.
+   - Ensure sufficient quota for the O3 model.
 
-2. **Transformers Model Download**
-   - (This section is no longer applicable as Hugging Face models are not used.)
-
-3. **Memory Issues**
-   - (This section is less critical as O3 is a cloud service, but be mindful of payload sizes to O3.)
+2. **Missing Environment Variables**
+   - Ensure all required environment variables listed above are present in your `.env` file. Missing variables, especially `AZURE_OPENAI_API_VERSION`, can lead to errors.
 
 ### Performance Optimization
 
@@ -199,5 +199,5 @@ This project is developed for VA clinical documentation quality assessment.
 ## References
 
 - Stetson et al., *PDQI-9: A Physician Documentation Quality Instrument*, J Biomed Inform 2012
-- Human Notes Evaluator (Sultan 2024) - https://huggingface.co/spaces/abachaa/HNE
+- Human Notes Evaluator (Sultan 2024) - https://huggingface.co/spaces/abachaa/HNE (General reference for note evaluation concepts)
 - Croxford et al., *LLM as a Judge for PDQI-9*, 2025 preprint 
