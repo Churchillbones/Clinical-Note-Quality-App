@@ -43,7 +43,7 @@ def grade_via_form():
         logger.info(f"Received request for /grade with note: {clinical_note[:100]}... and transcript (present: {bool(encounter_transcript)})")
         result = grade_note_hybrid(clinical_note=clinical_note, encounter_transcript=encounter_transcript)
         logger.info("Successfully returned grading results for /grade.")
-        return render_template('result.html', result=result)
+        return render_template('result.html', result=result, clinical_note=clinical_note, encounter_transcript=encounter_transcript)
     except (OpenAIServiceError, OpenAIAuthError, OpenAIResponseError) as e:
         logger.error(f"OpenAI related error during /grade route processing: {e}", exc_info=True)
         return render_template('index.html', error=str(e))

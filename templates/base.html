@@ -5,12 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinical Note Quality Assessment</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Additional custom styles if needed, but prefer Tailwind classes */
+    </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <nav class="bg-blue-600 text-white p-4">
-        <div class="container mx-auto">
-            <h1 class="text-xl font-bold">Clinical Note Quality Assessment</h1>
-            <p class="text-blue-100">PDQI-9 + Hybrid Analysis</p>
+<body class="font-sans bg-gray-100 min-h-screen text-gray-800">
+    <nav class="bg-blue-600 text-white shadow-md">
+        <div class="container mx-auto px-6 py-4"> {/* Increased padding */}
+            <h1 class="text-2xl font-bold">Clinical Note Quality Assessment</h1> {/* Increased font size */}
+            <p class="text-sm text-blue-100">PDQI-9 + Heuristics + Factuality Analysis</p> {/* Adjusted text size and content */}
         </div>
     </nav>
     
@@ -18,9 +21,9 @@
         {% block content %}{% endblock %}
     </main>
     
-    <footer class="bg-gray-800 text-white p-4 mt-8">
-        <div class="container mx-auto text-center">
-            <p>&copy; 2024 VA Clinical Documentation Quality System</p>
+    <footer class="bg-gray-700 text-gray-300 p-6 mt-12"> {/* Adjusted background and padding */}
+        <div class="container mx-auto text-center text-sm"> {/* Made text smaller */}
+            <p>&copy; 2024 VA Clinical Documentation Quality System. All Rights Reserved.</p>
         </div>
     </footer>
 </body>

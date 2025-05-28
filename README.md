@@ -8,7 +8,8 @@ A Flask application (`app.py`) that grades clinical notes using the PDQI-9 rubri
 - **Heuristic Analysis**: Rule-based metrics for length, redundancy, and structure
 - **Factuality Checking**: Azure OpenAI O3-based consistency analysis against encounter transcripts (if provided)
 - **Hybrid Scoring**: Weighted combination of all assessment methods
-- **Web Interface**: Clean HTML forms and results display
+- **Web Interface**: Clean HTML forms and results display, including options to download results.
+- **Downloadable Results**: Assessment reports available in JSON and plain text formats.
 - **REST API**: JSON endpoints for programmatic access
 
 ## Quick Start
@@ -63,6 +64,14 @@ The application will be available at `http://localhost:5000`
 2. Enter your clinical note in the "Clinical Note" text area.
 3. Optionally, paste the encounter transcript into the "Encounter Transcript" text area for factuality checking.
 4. Click "Grade Note" to get a comprehensive assessment.
+5. On the results page, you can:
+    *   Review the detailed scores and overall grade.
+    *   Download the complete assessment report in JSON format (includes input note, transcript, and all scores).
+    *   Download a human-readable plain text summary of the assessment.
+
+#### Downloadable Results Details
+- **JSON Format**: Includes the original clinical note, encounter transcript (if provided), and the complete structured scoring data. Ideal for programmatic use or archiving.
+- **Text Format**: A human-readable plain text file containing the note, transcript, and all scoring details. Suitable for quick review or sharing.
 
 ### REST API
 
