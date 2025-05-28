@@ -1,37 +1,42 @@
-import openai
+from openai import AzureOpenAI, APIConnectionError, AuthenticationError, APIStatusError, RateLimitError, APIError
 import json
 import logging
 from typing import Dict
 from config import Config
+from grading.exceptions import OpenAIServiceError, OpenAIAuthError, OpenAIResponseError
 
 logger = logging.getLogger(__name__)
+
+# Module-level client initialization is an option, but let's stick to function-level
+# for now to maintain consistency with previous refactoring steps and avoid
+# potential issues if this module is used in different contexts.
 
 def assess_consistency_with_o3(clinical_note: str, encounter_transcript: str) -> int:
     """Assess factual consistency between note and transcript using O3."""
     if not Config.AZURE_OPENAI_ENDPOINT or not Config.AZURE_OPENAI_KEY:
-        logger.warning("Azure OpenAI credentials not configured. Skipping O3 factuality check.")
+        # This case might be better handled by raising a specific configuration error
+        # or by the calling function ensuring credentials exist before calling.
+        # For now, retain warning and neutral score as per original logic for this specific check.
+        logger.warning("Azure OpenAI credentials not configured for factuality check. Returning neutral score.")
         return 3 # Neutral score
 
     try:
+        client = AzureOpenAI(
+            azure_endpoint=Config.AZURE_OPENAI_ENDPOINT,
+            api_key=Config.AZURE_OPENAI_KEY,
+            api_version=Config.AZURE_OPENAI_API_VERSION
+        )
+
         messages = [
             {"role": "system", "content": Config.FACTUALITY_INSTRUCTIONS},
             {"role": "user", "content": f"Clinical Note:\n\n{clinical_note}\n\nEncounter Transcript:\n\n{encounter_transcript}"}
         ]
         
-        # Initialize OpenAI client for this call specifically if not already configured globally
-        # This ensures that if o3_judge.py configures it, we don't interfere, 
-        # and if not, we configure it here.
-        if not openai.api_base: # Check if already configured
-            openai.api_type = "azure"
-            openai.api_base = Config.AZURE_OPENAI_ENDPOINT
-            openai.api_key = Config.AZURE_OPENAI_KEY
-            openai.api_version = "2024-02-15-preview"
-
-        response = openai.ChatCompletion.create(
-            engine=Config.AZURE_O3_DEPLOYMENT,
+        response = client.chat.completions.create(
+            model=Config.AZURE_O3_DEPLOYMENT,
             messages=messages,
-            temperature=Config.TEMPERATURE, # Use temperature from config, typically 0.0 for deterministic
-            max_tokens=200  # Expecting a small JSON response
+            temperature=Config.TEMPERATURE,
+            max_tokens=200 
         )
         
         content = response.choices[0].message.content.strip()
@@ -41,19 +46,42 @@ def assess_consistency_with_o3(clinical_note: str, encounter_transcript: str) ->
             consistency_score = score_data.get('consistency_score')
             
             if isinstance(consistency_score, int) and 1 <= consistency_score <= 5:
-                logger.info(f"O3 factuality scoring completed successfully. Score: {consistency_score}")
+                logger.info(f"O3 factuality scoring completed successfully. Score: {consistency_score}.")
                 return consistency_score
             else:
-                logger.error(f"Invalid consistency score from O3: {consistency_score}. Content: {content}")
-                raise ValueError(f"Invalid score format from O3 factuality check.")
+                logger.error(f"Invalid consistency score from O3: {consistency_score}. Content: {content}", exc_info=True)
+                raise OpenAIResponseError("Invalid or malformed response from Azure OpenAI service for factuality check: Invalid score format or value.")
                 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse O3 JSON response for factuality: {content}. Error: {e}")
-            raise ValueError(f"Invalid JSON from O3 factuality check: {e}")
-            
+            logger.error(f"Failed to parse O3 JSON response for factuality: {content}. Error: {e}", exc_info=True)
+            raise OpenAIResponseError(f"Invalid or malformed response from Azure OpenAI service for factuality check: {e}")
+        except OpenAIResponseError: # Re-raise if it's already the correct type
+            raise
+        except ValueError as e: # Catch validation errors raised above (should be less likely)
+             logger.error(f"ValueError during factuality response processing: {content}. Error: {e}", exc_info=True)
+             raise OpenAIResponseError(str(e))
+
+
+    except AuthenticationError as e:
+        logger.error(f"Azure OpenAI authentication failed during factuality check: {e}", exc_info=True)
+        raise OpenAIAuthError("Authentication failed for factuality check. Please check Azure OpenAI credentials.")
+    except APIConnectionError as e:
+        logger.error(f"Could not connect to Azure OpenAI service during factuality check: {e}", exc_info=True)
+        raise OpenAIServiceError("Could not connect to Azure OpenAI service for factuality check.")
+    except RateLimitError as e:
+        logger.error(f"Azure OpenAI rate limit exceeded during factuality check: {e}", exc_info=True)
+        raise OpenAIServiceError("Rate limit exceeded for Azure OpenAI service during factuality check.")
+    except APIStatusError as e:
+        logger.error(f"Azure OpenAI API error during factuality check. Status: {e.status_code}, Message: {e.message}", exc_info=True)
+        raise OpenAIServiceError(f"Azure OpenAI API error during factuality check: {e.status_code} {e.message}")
+    except APIError as e: # Catch any other OpenAI SDK error
+        logger.error(f"Azure OpenAI SDK error during factuality check: {e}", exc_info=True)
+        raise OpenAIServiceError(f"Azure OpenAI SDK error during factuality check: {e}")
     except Exception as e:
-        logger.error(f"O3 API call for factuality failed: {e}")
-        return 3 # Return neutral score on failure
+        # Catch any other unexpected error not covered by OpenAI exceptions
+        # or custom response errors.
+        logger.error(f"Unexpected error during factuality assessment, returning neutral score: {e}", exc_info=True)
+        return 3 # Return neutral score for non-OpenAI, non-response related failures
 
 def analyze_factuality(clinical_note: str, encounter_transcript: str = "") -> Dict[str, float]:
     """Analyze factual consistency between note and transcript using O3."""

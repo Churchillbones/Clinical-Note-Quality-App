@@ -1,6 +1,9 @@
 import re
+import logging
 from typing import Dict, Tuple
 from collections import Counter
+
+logger = logging.getLogger(__name__)
 
 def calculate_length_score(text: str) -> float:
     """Calculate length appropriateness score (0-5)."""
@@ -81,13 +84,15 @@ def calculate_structure_score(text: str) -> float:
 
 def analyze_heuristics(clinical_note: str) -> Dict[str, float]:
     """Analyze clinical note using rule-based heuristics."""
-    return {
+    results = {
         'length_score': calculate_length_score(clinical_note),
         'redundancy_score': calculate_redundancy_score(clinical_note),
         'structure_score': calculate_structure_score(clinical_note),
         'word_count': len(clinical_note.split()),
         'character_count': len(clinical_note)
     }
+    logger.info("Heuristic analysis completed.")
+    return results
 
 def get_heuristic_composite(heuristics: Dict[str, float]) -> float:
     """Calculate composite heuristic score (0-5)."""
