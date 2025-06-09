@@ -1,9 +1,62 @@
-venv/
-.env
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.sqlite3
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Local development settings
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Log files
 *.log
-htmlcov/ 
+logs/
+log/
+
+# API keys and secrets
+api_keys.py
+secrets.py
+
+# Database files
+*.db
+*.sqlite3
+
+# Model files and large data files (if applicable)
+*.h5
+*.pkl
+*.model
+.ipynb_checkpoints/
+
+# Test coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover

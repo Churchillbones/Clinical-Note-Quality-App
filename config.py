@@ -2,17 +2,20 @@ import os
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
-    
-    # Azure OpenAI Configuration
+      # Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT = os.environ.get('AZ_OPENAI_ENDPOINT')
     AZURE_OPENAI_KEY = os.environ.get('AZ_OPENAI_KEY')
     AZURE_O3_DEPLOYMENT = os.environ.get('AZ_O3_DEPLOYMENT', 'gpt-o3')
-    AZURE_OPENAI_API_VERSION = os.environ.get('AZ_OPENAI_API_VERSION', '2024-02-15-preview')
+    AZURE_OPENAI_API_VERSION = os.environ.get('AZ_OPENAI_API_VERSION', '2024-02-15-preview')    # Model Configuration
+    MAX_COMPLETION_TOKENS = 1000  # Changed from MAX_TOKENS for API compatibility
+    # For o3-mini model, use model_low, model_medium, or model_high instead of temperature
+    # Options: "low", "medium", "high"
+    MODEL_PRECISION = os.environ.get('MODEL_PRECISION', 'medium')
     
-    # Model Configuration
-    TEMPERATURE = 0.0
-    MAX_TOKENS = 1000
-    
+    # Add deployment names for each precision level
+    AZURE_O3_HIGH_DEPLOYMENT = os.environ.get('AZ_O3_HIGH_DEPLOYMENT', AZURE_O3_DEPLOYMENT)
+    AZURE_O3_LOW_DEPLOYMENT = os.environ.get('AZ_O3_LOW_DEPLOYMENT', AZURE_O3_DEPLOYMENT)
+
     # PDQI-9 Scoring Instructions
     PDQI_INSTRUCTIONS = """
 You are an expert clinical documentation reviewer. Grade this clinical note using the PDQI-9 rubric on a scale of 1-5 for each dimension:
@@ -54,4 +57,4 @@ Example: {"consistency_score": 4}
     # Hybrid Scoring Weights
     PDQI_WEIGHT = 0.7
     HEURISTIC_WEIGHT = 0.2
-    FACTUALITY_WEIGHT = 0.1 
+    FACTUALITY_WEIGHT = 0.1

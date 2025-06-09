@@ -14,54 +14,59 @@ class O3Judge:
             api_key=Config.AZURE_OPENAI_KEY,
             api_version=Config.AZURE_OPENAI_API_VERSION
         )
-    
-    def score_pdqi9(self, clinical_note: str) -> Dict[str, int]:
+
+    def score_pdqi9(self, clinical_note: str, model_precision: str = "medium") -> Dict[str, int]:
         """Score clinical note using O3 against PDQI-9 rubric."""
         try:
             messages = [
                 {"role": "system", "content": Config.PDQI_INSTRUCTIONS},
                 {"role": "user", "content": f"Clinical Note:\n\n{clinical_note}"}
             ]
-            
-            response = self.client.chat.completions.create(
-                model=Config.AZURE_O3_DEPLOYMENT,
-                messages=messages,
-                temperature=Config.TEMPERATURE,
-                max_tokens=Config.MAX_TOKENS
-            )
-            
+            # Select deployment based on model_precision
+            if model_precision == "high":
+                model_name = Config.AZURE_O3_HIGH_DEPLOYMENT
+            elif model_precision == "low":
+                model_name = Config.AZURE_O3_LOW_DEPLOYMENT
+            else:
+                model_name = Config.AZURE_O3_DEPLOYMENT
+            kwargs = {"model": model_name, "messages": messages}
+            # Add max_completion_tokens parameter only if it's defined
+            if hasattr(Config, 'MAX_COMPLETION_TOKENS') and Config.MAX_COMPLETION_TOKENS:
+                kwargs["max_completion_tokens"] = Config.MAX_COMPLETION_TOKENS
+
+            response = self.client.chat.completions.create(**kwargs)
+
             content = response.choices[0].message.content.strip()
-            
+
             # Parse JSON response
-            try:
-                scores = json.loads(content)
-                
-                required_keys = [
-                    'up_to_date', 'accurate', 'thorough', 'useful', 
-                    'organized', 'concise', 'consistent', 'complete', 'actionable'
-                ]
-                
-                if not all(key in scores for key in required_keys):
-                    logger.error(f"Missing required keys in O3 response: {content}", exc_info=True)
-                    raise OpenAIResponseError("Invalid or malformed response from Azure OpenAI service: Missing keys.")
-                
-                for key, value in scores.items():
-                    # Only check keys that are supposed to be there, ignore extra keys if any
-                    if key in required_keys and (not isinstance(value, int) or not 1 <= value <= 5):
-                        logger.error(f"Invalid score for {key}: {value} in O3 response: {content}", exc_info=True)
-                        raise OpenAIResponseError(f"Invalid or malformed response from Azure OpenAI service: Invalid score for {key}.")
-                
-                logger.info("O3 PDQI-9 scoring completed successfully.")
-                return scores
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse O3 JSON response: {content}. Error: {e}", exc_info=True)
-                raise OpenAIResponseError(f"Invalid or malformed response from Azure OpenAI service: {e}")
-            except OpenAIResponseError: # Re-raise if it's already the correct type from checks above
-                raise
-            except ValueError as e: # Catch validation errors raised above (should be less likely now)
-                logger.error(f"ValueError during O3 response processing: {content}. Error: {e}", exc_info=True)
-                raise OpenAIResponseError(str(e))
+            scores = json.loads(content)
+
+            required_keys = [
+                'up_to_date', 'accurate', 'thorough', 'useful', 
+                'organized', 'concise', 'consistent', 'complete', 'actionable'
+            ]
+
+            if not all(key in scores for key in required_keys):
+                logger.error(f"Missing required keys in O3 response: {content}", exc_info=True)
+                raise OpenAIResponseError("Invalid or malformed response from Azure OpenAI service: Missing keys.")
+
+            for key, value in scores.items():
+                # Only check keys that are supposed to be there, ignore extra keys if any
+                if key in required_keys and (not isinstance(value, int) or not 1 <= value <= 5):
+                    logger.error(f"Invalid score for {key}: {value} in O3 response: {content}", exc_info=True)
+                    raise OpenAIResponseError(f"Invalid or malformed response from Azure OpenAI service: Invalid score for {key}.")
+
+            logger.info("O3 PDQI-9 scoring completed successfully.")
+            return scores
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse O3 JSON response: {content}. Error: {e}", exc_info=True)
+            raise OpenAIResponseError(f"Invalid or malformed response from Azure OpenAI service: {e}")
+        except OpenAIResponseError: # Re-raise if it's already the correct type from checks above
+            raise
+        except ValueError as e: # Catch validation errors raised above (should be less likely now)
+            logger.error(f"ValueError during O3 response processing: {content}. Error: {e}", exc_info=True)
+            raise OpenAIResponseError(str(e))
 
         except AuthenticationError as e:
             logger.error(f"Azure OpenAI authentication failed: {e}", exc_info=True)
@@ -80,7 +85,7 @@ class O3Judge:
             raise OpenAIServiceError(f"Azure OpenAI SDK error: {e}")
         # Removed the generic except Exception that returned default scores
 
-def score_with_o3(clinical_note: str) -> Dict[str, int]:
+def score_with_o3(clinical_note: str, model_precision: str = "medium") -> Dict[str, int]:
     """Convenience function for scoring with O3."""
     judge = O3Judge()
-    return judge.score_pdqi9(clinical_note) 
+    return judge.score_pdqi9(clinical_note, model_precision=model_precision)

@@ -8,6 +8,7 @@ A Flask application (`app.py`) that grades clinical notes using the PDQI-9 rubri
 - **Heuristic Analysis**: Rule-based metrics for length, redundancy, and structure
 - **Factuality Checking**: Azure OpenAI O3-based consistency analysis against encounter transcripts (if provided)
 - **Hybrid Scoring**: Weighted combination of all assessment methods
+- **Model Precision Control**: Choose between low, medium, and high precision settings for the AI model
 - **Web Interface**: Clean HTML forms and results display
 - **REST API**: JSON endpoints for programmatic access
 

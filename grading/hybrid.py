@@ -20,7 +20,7 @@ def calculate_overall_grade(score: float) -> str:
     else:
         return "F"
 
-def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "") -> Dict[str, Any]:
+def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "", model_precision: str = "medium") -> Dict[str, Any]:
     """
     Grade clinical note using hybrid approach:
     - PDQI-9 scores from O3 (70% weight)
@@ -30,7 +30,7 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "") -> Dic
     logger.info("Starting hybrid grading pipeline")
     
     # Get PDQI-9 scores from O3
-    pdqi_scores = score_with_o3(clinical_note)
+    pdqi_scores = score_with_o3(clinical_note, model_precision=model_precision)
     pdqi_average = sum(pdqi_scores.values()) / len(pdqi_scores)
     
     # Get heuristic analysis
@@ -38,7 +38,7 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "") -> Dic
     heuristic_score = get_heuristic_composite(heuristics)
     
     # Get factuality analysis (O3 based)
-    factuality_analysis_result = analyze_factuality(clinical_note, encounter_transcript)
+    factuality_analysis_result = analyze_factuality(clinical_note, encounter_transcript, model_precision=model_precision)
     # The consistency_score from O3 is already in the 1-5 range.
     factuality_score = factuality_analysis_result['consistency_score']
     
@@ -64,10 +64,8 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "") -> Dic
             'character_count': heuristics['character_count']
         },
         'factuality_analysis': {
-            # 'entailment_score' is no longer applicable with the new O3 approach for factuality.
-            # We directly use 'consistency_score'.
             'consistency_score': round(factuality_analysis_result['consistency_score'], 2),
-            'claims_checked': factuality_analysis_result['claims_checked'] # Now 0 or 1
+            'claims_checked': factuality_analysis_result['claims_checked']
         },
         'hybrid_score': round(hybrid_score, 2),
         'overall_grade': calculate_overall_grade(hybrid_score),
@@ -79,4 +77,4 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "") -> Dic
     }
     
     logger.info(f"Hybrid grading completed. Overall score: {hybrid_score:.2f}")
-    return result 
+    return result

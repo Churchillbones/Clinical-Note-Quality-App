@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # for now to maintain consistency with previous refactoring steps and avoid
 # potential issues if this module is used in different contexts.
 
-def assess_consistency_with_o3(clinical_note: str, encounter_transcript: str) -> int:
+def assess_consistency_with_o3(clinical_note: str, encounter_transcript: str, model_precision: str = "medium") -> int:
     """Assess factual consistency between note and transcript using O3."""
     if not Config.AZURE_OPENAI_ENDPOINT or not Config.AZURE_OPENAI_KEY:
         # This case might be better handled by raising a specific configuration error
@@ -31,16 +31,26 @@ def assess_consistency_with_o3(clinical_note: str, encounter_transcript: str) ->
             {"role": "system", "content": Config.FACTUALITY_INSTRUCTIONS},
             {"role": "user", "content": f"Clinical Note:\n\n{clinical_note}\n\nEncounter Transcript:\n\n{encounter_transcript}"}
         ]
+        # Select deployment based on model_precision
+        if model_precision == "high":
+            model_name = Config.AZURE_O3_HIGH_DEPLOYMENT
+        elif model_precision == "low":
+            model_name = Config.AZURE_O3_LOW_DEPLOYMENT
+        else:
+            model_name = Config.AZURE_O3_DEPLOYMENT
+        kwargs = {"model": model_name, "messages": messages}
+        # Add max_completion_tokens parameter
+        kwargs["max_completion_tokens"] = 200
         
-        response = client.chat.completions.create(
-            model=Config.AZURE_O3_DEPLOYMENT,
-            messages=messages,
-            temperature=Config.TEMPERATURE,
-            max_tokens=200 
-        )
+        response = client.chat.completions.create(**kwargs)
         
         content = response.choices[0].message.content.strip()
         
+        # Log the raw response content for debugging
+        logger.debug(f"Raw O3 factuality response content: '{content}'")
+        if not content:
+            logger.error("Received empty response content from Azure OpenAI factuality check.")
+            raise OpenAIResponseError("Empty response from Azure OpenAI service for factuality check.")
         try:
             score_data = json.loads(content)
             consistency_score = score_data.get('consistency_score')
@@ -83,7 +93,7 @@ def assess_consistency_with_o3(clinical_note: str, encounter_transcript: str) ->
         logger.error(f"Unexpected error during factuality assessment, returning neutral score: {e}", exc_info=True)
         return 3 # Return neutral score for non-OpenAI, non-response related failures
 
-def analyze_factuality(clinical_note: str, encounter_transcript: str = "") -> Dict[str, float]:
+def analyze_factuality(clinical_note: str, encounter_transcript: str = "", model_precision: str = "medium") -> Dict[str, float]:
     """Analyze factual consistency between note and transcript using O3."""
     
     if not encounter_transcript.strip():
@@ -95,11 +105,11 @@ def analyze_factuality(clinical_note: str, encounter_transcript: str = "") -> Di
         }
 
     # Call O3 for consistency assessment
-    o3_consistency_score = assess_consistency_with_o3(clinical_note, encounter_transcript)
+    o3_consistency_score = assess_consistency_with_o3(clinical_note, encounter_transcript, model_precision=model_precision)
     
     # The 'entailment_score' key was used previously. We'll keep a similar structure.
     # The new O3 prompt directly asks for a 'consistency_score' (1-5).
     return {
         'consistency_score': float(o3_consistency_score), # Already 1-5
         'claims_checked': 1 # Indicates one overall check was performed
-    } 
+    }
