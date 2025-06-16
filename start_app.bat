@@ -81,10 +81,12 @@ if /i "%debug_mode%"=="y" (
     set DEBUG=True
     echo Starting Flask application in DEBUG mode...
     echo Press Ctrl+C to stop the server
+    start http://localhost:5000
     python app.py
 ) else (
     echo Starting Flask application...
     echo Press Ctrl+C to stop the server
+    start http://localhost:5000
     python app.py
 )
 

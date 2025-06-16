@@ -62,7 +62,7 @@ def test_o3_judge_success(mock_azure_openai_constructor, sample_clinical_note):
     (APIConnectionError(message="Connection error", request=MagicMock()), OpenAIServiceError, "Could not connect"),
     (RateLimitError(message="Rate limit error", response=MagicMock(), body=None), OpenAIServiceError, "Rate limit exceeded"),
     (APIStatusError(message="API status error", response=MagicMock(status_code=500), body=None), OpenAIServiceError, "API error: 500"),
-    (APIError(message="Generic API error", request=MagicMock()), OpenAIServiceError, "Azure OpenAI SDK error"),
+    (APIError(message="Generic API error", request=MagicMock(), body=None), OpenAIServiceError, "Azure OpenAI SDK error"),
 ])
 @patch('grading.o3_judge.AzureOpenAI')
 def test_o3_judge_openai_api_errors(mock_azure_openai_constructor, openai_exception, custom_exception_type, error_message_snippet, sample_clinical_note):

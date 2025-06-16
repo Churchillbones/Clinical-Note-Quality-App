@@ -1,7 +1,8 @@
 from typing import Dict, Any
 from .o3_judge import score_with_o3
 from .heuristics import analyze_heuristics, get_heuristic_composite
-from .factuality import analyze_factuality
+from .factuality import analyze_factuality, analyze_factuality_with_agent
+import asyncio
 from config import Config
 import logging
 
@@ -29,19 +30,82 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "", model_
     """
     logger.info("Starting hybrid grading pipeline")
     
+    if encounter_transcript is None:
+        encounter_transcript = ""
+    
     # Get PDQI-9 scores from O3
-    pdqi_scores = score_with_o3(clinical_note, model_precision=model_precision)
-    pdqi_average = sum(pdqi_scores.values()) / len(pdqi_scores)
+    pdqi_scores = score_with_o3(clinical_note)
+    # Cast any numeric strings like "4" or "4.0" to float for consistency
+    for key, val in list(pdqi_scores.items()):
+        if key != 'summary' and isinstance(val, str):
+            try:
+                pdqi_scores[key] = float(val)
+            except ValueError:
+                pass  # leave as-is if not convertible
+    # Only sum numeric values (exclude 'summary' and any non-numeric entries)
+    pdqi_numeric_scores = [v for k, v in pdqi_scores.items() if isinstance(v, (int, float))]
+    pdqi_average = sum(pdqi_numeric_scores) / len(pdqi_numeric_scores) if pdqi_numeric_scores else 0
+    
+    # Auto-generate a concise narrative summary if missing or empty
+    def _generate_pdqi_summary(scores_dict):
+        numeric_items = {k: v for k, v in scores_dict.items() if k not in {"summary", "rationale"} and isinstance(v, (int, float))}
+        if not numeric_items:
+            return ""
+        strengths = [k for k, v in numeric_items.items() if v >= 4]
+        weaknesses = [k for k, v in numeric_items.items() if v <= 2]
+        parts = []
+        if strengths:
+            parts.append("Strong in " + ", ".join(strengths).replace('_', ' '))
+        if weaknesses:
+            parts.append("Needs improvement in " + ", ".join(weaknesses).replace('_', ' '))
+        return "; ".join(parts).capitalize() + "."
+
+    if not isinstance(pdqi_scores.get('summary'), str) or not pdqi_scores.get('summary').strip():
+        pdqi_scores['summary'] = _generate_pdqi_summary(pdqi_scores)
     
     # Get heuristic analysis
     heuristics = analyze_heuristics(clinical_note)
     heuristic_score = get_heuristic_composite(heuristics)
     
-    # Get factuality analysis (O3 based)
-    factuality_analysis_result = analyze_factuality(clinical_note, encounter_transcript, model_precision=model_precision)
-    # The consistency_score from O3 is already in the 1-5 range.
+    # --- Factuality: Use agent-based if transcript and GPT-4o config, else fallback ---
+    factuality_analysis_result = None
+    if encounter_transcript.strip() and hasattr(Config, 'AZURE_OPENAI_KEY') and hasattr(Config, 'AZURE_OPENAI_ENDPOINT') and hasattr(Config, 'AZURE_GPT4O_API_VERSION') and hasattr(Config, 'GPT4O_DEPLOYMENT'):
+        try:
+            factuality_analysis_result = asyncio.run(
+                analyze_factuality_with_agent(
+                    clinical_note,
+                    encounter_transcript,
+                    api_key=Config.AZURE_OPENAI_KEY,
+                    azure_endpoint=Config.AZURE_OPENAI_ENDPOINT,
+                    api_version=Config.AZURE_GPT4O_API_VERSION,
+                    model_name=Config.GPT4O_DEPLOYMENT
+                )
+            )
+        except Exception as e:
+            logger.error(f"Agent-based factuality failed, falling back to O3: {e}")
+            factuality_analysis_result = analyze_factuality(clinical_note, encounter_transcript)
+    else:
+        factuality_analysis_result = analyze_factuality(clinical_note, encounter_transcript)
     factuality_score = factuality_analysis_result['consistency_score']
     
+    # --- Build chain of thought for debugging/review purposes ---
+    chain_of_thought_parts = []
+    if isinstance(pdqi_scores.get('rationale'), str) and pdqi_scores.get('rationale').strip():
+        chain_of_thought_parts.append("PDQI Rationale:\n" + pdqi_scores['rationale'].strip())
+    # Include the raw PDQI summary as well if present
+    if isinstance(pdqi_scores.get('summary'), str) and pdqi_scores.get('summary').strip():
+        chain_of_thought_parts.append("PDQI Summary:\n" + pdqi_scores['summary'].strip())
+
+    # Add claim-level explanations from factuality agent if available
+    factual_claims = factuality_analysis_result.get('claims', [])
+    if factual_claims:
+        coherent_claims = [
+            f"• {claim.get('claim')} => {claim.get('support')} - {claim.get('explanation')}" for claim in factual_claims
+        ]
+        chain_of_thought_parts.append("Factuality Claim Analysis:\n" + "\n".join(coherent_claims))
+
+    chain_of_thought = "\n\n".join(chain_of_thought_parts)
+
     # Calculate weighted hybrid score
     hybrid_score = (
         pdqi_average * Config.PDQI_WEIGHT +
@@ -65,7 +129,9 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "", model_
         },
         'factuality_analysis': {
             'consistency_score': round(factuality_analysis_result['consistency_score'], 2),
-            'claims_checked': factuality_analysis_result['claims_checked']
+            'claims_checked': factuality_analysis_result['claims_checked'],
+            'summary': factuality_analysis_result.get('summary', ''),
+            'claims': factuality_analysis_result.get('claims', [])
         },
         'hybrid_score': round(hybrid_score, 2),
         'overall_grade': calculate_overall_grade(hybrid_score),
@@ -73,7 +139,8 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "", model_
             'pdqi_weight': Config.PDQI_WEIGHT,
             'heuristic_weight': Config.HEURISTIC_WEIGHT,
             'factuality_weight': Config.FACTUALITY_WEIGHT
-        }
+        },
+        'chain_of_thought': chain_of_thought
     }
     
     logger.info(f"Hybrid grading completed. Overall score: {hybrid_score:.2f}")
