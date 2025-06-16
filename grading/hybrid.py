@@ -5,6 +5,13 @@ from .factuality import analyze_factuality, analyze_factuality_with_agent
 import asyncio
 from config import Config
 import logging
+import warnings
+
+warnings.warn(
+    "'grading.hybrid' is deprecated; use 'clinical_note_quality.services.grading_service' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +40,17 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "", model_
     if encounter_transcript is None:
         encounter_transcript = ""
     
-    # Get PDQI-9 scores from O3
-    pdqi_scores = score_with_o3(clinical_note)
+    # Strategy: Use Nine Rings architecture if explicitly enabled via env var; otherwise default to O3
+    use_nine_rings = bool(Config.__dict__.get("USE_NINE_RINGS") or False)
+    if use_nine_rings:
+        try:
+            from .nine_rings import score_with_nine_rings  # Local import to avoid circular deps
+            pdqi_scores = score_with_nine_rings(clinical_note)
+        except Exception as e:
+            logger.error(f"NineRings evaluation failed, falling back to O3: {e}")
+            pdqi_scores = score_with_o3(clinical_note)
+    else:
+        pdqi_scores = score_with_o3(clinical_note)
     # Cast any numeric strings like "4" or "4.0" to float for consistency
     for key, val in list(pdqi_scores.items()):
         if key != 'summary' and isinstance(val, str):

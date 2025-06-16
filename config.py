@@ -61,3 +61,6 @@ You are an expert clinical documentation reviewer. Assess the factual consistenc
     FACTUALITY_WEIGHT = 0.1
 
     AZURE_FACTUALITY_DEPLOYMENT = os.environ.get('AZ_FACTUALITY_DEPLOYMENT', AZURE_O3_DEPLOYMENT)
+
+    # Feature flags
+    USE_NINE_RINGS = os.environ.get('USE_NINE_RINGS', '').lower() in {'1', 'true', 'yes'}

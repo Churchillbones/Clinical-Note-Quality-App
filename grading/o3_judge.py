@@ -1,3 +1,9 @@
+import warnings
+warnings.warn(
+    "'grading.o3_judge' is deprecated; use 'clinical_note_quality.services.pdqi_service' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 from openai import AzureOpenAI, APIConnectionError, AuthenticationError, APIStatusError, RateLimitError, APIError
 try:
     from jsonschema import validate, ValidationError
@@ -87,9 +93,18 @@ class O3Judge:
                     import re
                     pattern = r'"(up_to_date|accurate|thorough|useful|organized|concise|consistent|complete|actionable)"\s*:\s*(\d)'
                     matches = re.findall(pattern, content)
-                    if len(matches) == 9:
+                    if matches:
+                        logger.warning("Parsed %d PDQI scores via regex fallback due to malformed JSON.", len(matches))
                         scores = {k: int(v) for k, v in matches}
-                        logger.warning("Parsed PDQI-9 scores via regex fallback due to malformed JSON.")
+                        # Fill any missing keys with score 3 as neutral default
+                        required_keys = [
+                            'up_to_date', 'accurate', 'thorough', 'useful', 
+                            'organized', 'concise', 'consistent', 'complete', 'actionable'
+                        ]
+                        for missing in [k for k in required_keys if k not in scores]:
+                            scores[missing] = 3
+                        # Provide minimal summary to avoid downstream failures
+                        scores.setdefault("summary", "Partial PDQI-9 scores reconstructed from truncated response.")
                     else:
                         logger.error(f"Failed to parse O3 JSON response: {content}. Error: {e}", exc_info=True)
                         raise OpenAIResponseError(f"Invalid or malformed response from Azure OpenAI service: {e}\nRaw content: {content}")

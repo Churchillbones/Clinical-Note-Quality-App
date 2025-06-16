@@ -1,3 +1,9 @@
+import warnings
+warnings.warn(
+    "'grading.heuristics' is deprecated; use 'clinical_note_quality.services.heuristic_service' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 import re
 import logging
 from typing import Dict, Tuple

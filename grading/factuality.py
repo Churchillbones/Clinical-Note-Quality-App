@@ -1,3 +1,9 @@
+import warnings
+warnings.warn(
+    "'grading.factuality' is deprecated; use 'clinical_note_quality.services.factuality_service' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 from openai import AzureOpenAI, APIConnectionError, AuthenticationError, APIStatusError, RateLimitError, APIError
 import json
 import logging

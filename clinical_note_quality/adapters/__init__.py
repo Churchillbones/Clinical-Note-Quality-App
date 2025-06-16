@@ -1,0 +1,1 @@
+"""Adapters layer – external system integrations (Azure, DB, etc.).""" 
