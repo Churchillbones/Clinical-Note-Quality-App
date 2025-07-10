@@ -5,17 +5,25 @@ class Config:
     # Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT = os.environ.get('AZ_OPENAI_ENDPOINT') or os.environ.get('AZURE_ENDPOINT')
     AZURE_OPENAI_KEY = os.environ.get('AZ_OPENAI_KEY') or os.environ.get('AZURE_API_KEY')
-    # Use MODEL_NAME and API_VERSION for compatibility
+    # GPT-4o Configuration - supports multiple environment variable names for flexibility
     MODEL_NAME = os.environ.get('MODEL_NAME', 'gpt-4o')
-    API_VERSION = os.environ.get('API_VERSION', '2024-05-13-preview')
-    # For backward compatibility, also set GPT4O_DEPLOYMENT and AZURE_GPT4O_API_VERSION
-    GPT4O_DEPLOYMENT = MODEL_NAME
-    AZURE_GPT4O_API_VERSION = API_VERSION
+    GPT4O_DEPLOYMENT = os.environ.get('GPT4O_DEPLOYMENT', MODEL_NAME)
+    
+    # API Version - check multiple possible environment variable names
+    API_VERSION = (
+        os.environ.get('API_VERSION') or 
+        os.environ.get('AZURE_API_VERSION') or
+        '2024-02-15-preview'  # Default to working version
+    )
+    AZURE_GPT4O_API_VERSION = (
+        os.environ.get('AZURE_GPT4O_API_VERSION') or 
+        API_VERSION
+    )
     # O3 config (unchanged)
     AZURE_O3_DEPLOYMENT = os.environ.get('AZ_O3_DEPLOYMENT', 'o3-mini')
     AZURE_O3_API_VERSION = os.environ.get('AZ_O3_API_VERSION', '2025-01-01-preview')
     AZURE_OPENAI_API_VERSION = os.environ.get('AZ_OPENAI_API_VERSION', AZURE_O3_API_VERSION)
-    MAX_COMPLETION_TOKENS = 1000  # Changed from MAX_TOKENS for API compatibility
+    MAX_COMPLETION_TOKENS = 8000  # Increased to prevent response truncation and ensure complete factuality assessments
     # For o3-mini model, use model_low, model_medium, or model_high instead of temperature
     # Options: "low", "medium", "high"
     MODEL_PRECISION = os.environ.get('MODEL_PRECISION', 'medium')
@@ -37,22 +45,111 @@ You are an expert clinical documentation reviewer. Critically and rigorously gra
 8. **complete**: All necessary information included (1=incomplete, 5=complete)
 9. **actionable**: Clear next steps and recommendations (1=vague, 5=specific actions)
 
-After scoring, provide a concise narrative summary (2-4 sentences) explaining the main reasons for the scores, highlighting both strengths and weaknesses. Be specific and critical in your analysis.
+For each dimension, provide detailed explanations including:
+- A narrative explanation (2-3 sentences) for why this specific score was assigned
+- Up to 3 brief evidence excerpts (≤30 words each) from the note that support the score
+- Up to 2 specific improvement suggestions for enhancing this dimension
+
+After scoring, provide a concise overall summary (2-4 sentences) explaining the main patterns across dimensions, highlighting both strengths and weaknesses.
 
 Return ONLY a JSON object with these exact keys:
 - the nine PDQI-9 dimension keys with integer scores 1-5,
-- a string key 'summary' containing the concise narrative explanation,
-- and an optional string key 'rationale' containing a step-by-step chain-of-thought justification (this will only be used internally for debugging and will not be shown to end-users).
+- a string key 'summary' containing the overall narrative explanation,
+- a string key 'scoring_rationale' containing your methodology and key decision factors,
+- an array key 'dimension_explanations' containing objects for each dimension with keys: 'dimension', 'score', 'narrative', 'evidence_excerpts' (array), 'improvement_suggestions' (array)
 
-Example expected JSON format (minified):
-{"up_to_date":3,"accurate":4,"thorough":2,"useful":3,"organized":4,"concise":3,"consistent":3,"complete":4,"actionable":2,"summary":"...","rationale":"..."}
+Example expected JSON format:
+{
+  "up_to_date": 3,
+  "accurate": 4,
+  "thorough": 2,
+  "useful": 3,
+  "organized": 4,
+  "concise": 3,
+  "consistent": 3,
+  "complete": 4,
+  "actionable": 2,
+  "summary": "The note demonstrates solid organization and accuracy but lacks thoroughness in key clinical areas...",
+  "scoring_rationale": "Scoring prioritized evidence-based content and clinical utility. Deducted points for missing elements...",
+  "dimension_explanations": [
+    {
+      "dimension": "up_to_date",
+      "score": 3,
+      "narrative": "The note includes current medications but lacks recent diagnostic updates.",
+      "evidence_excerpts": ["taking Terazosin for prostate issues", "elevated prostate number"],
+      "improvement_suggestions": ["Include recent lab values", "Reference current guidelines"]
+    }
+  ]
+}
 
-The optional 'rationale' should be no more than 300 words to avoid truncation.
+Keep narratives focused and actionable. Limit evidence excerpts to the most compelling examples. Ensure improvement suggestions are specific and implementable.
 """
 
     # Factuality Scoring Instructions
     FACTUALITY_INSTRUCTIONS = """
-You are an expert clinical documentation reviewer. Assess the factual consistency between the clinical note and the encounter transcript. Assign a 'consistency_score' from 1 (major inconsistencies) to 5 (fully consistent). Return ONLY a JSON object with the key 'consistency_score' (integer 1-5).
+You are an expert clinical documentation reviewer. Assess the factual consistency between the clinical note and the encounter transcript.
+
+Evaluate factual accuracy across these key areas:
+- **Demographics**: Patient age, gender, identifiers
+- **Chief Complaint**: Primary reason for visit
+- **History**: Medical history, symptoms, timeline
+- **Medications**: Current medications, dosages, changes
+- **Examination**: Physical findings, vital signs
+- **Assessment**: Diagnoses, clinical impressions
+- **Plan**: Treatment plans, follow-up instructions
+
+Assign a 'consistency_score' from 1-5:
+- **5**: Fully consistent - All major facts align between note and transcript
+- **4**: Mostly consistent - Minor discrepancies in non-critical details
+- **3**: Moderately consistent - Some notable inconsistencies but core facts align
+- **2**: Inconsistent - Significant discrepancies in important clinical information
+- **1**: Highly inconsistent - Major contradictions or fabricated information
+
+Provide detailed analysis including:
+- A consistency narrative explaining your assessment
+- Up to 5 key claims from the note with individual support assessments
+- Specific examples of consistencies and discrepancies
+
+Return ONLY a JSON object with these keys:
+- 'consistency_score' (integer 1-5)
+- 'consistency_narrative' (string): 2-3 sentences explaining the overall assessment
+- 'claims' (array of objects): Each claim object should have:
+  - 'claim' (string): The factual claim from the note
+  - 'support' (string): One of "Supported", "Not Supported", or "Unclear"
+  - 'explanation' (string): Brief explanation of the assessment
+- 'claims_narratives' (array of strings): Individual explanations for key claims checked (for backward compatibility)
+- 'summary' (string): Brief summary of findings
+
+Example format:
+{
+  "consistency_score": 4,
+  "consistency_narrative": "The note demonstrates strong factual consistency with the transcript, with accurate documentation of key clinical findings and treatment plans.",
+  "claims": [
+    {
+      "claim": "Patient age documented as 45",
+      "support": "Supported",
+      "explanation": "Transcript confirms patient age as 45 years old"
+    },
+    {
+      "claim": "Chief complaint of chest pain",
+      "support": "Supported", 
+      "explanation": "Patient clearly states chest pain as primary concern in transcript"
+    },
+    {
+      "claim": "Prescribed 10mg atorvastatin daily",
+      "support": "Not Supported",
+      "explanation": "Transcript indicates 20mg atorvastatin, not 10mg as documented"
+    }
+  ],
+  "claims_narratives": [
+    "Patient age documented as 45 matches transcript",
+    "Chief complaint of chest pain accurately captured",
+    "Medication dosage shows discrepancy: note says 10mg, transcript says 20mg"
+  ],
+  "summary": "High consistency with minor medication dosage discrepancy"
+}
+
+Focus on clinical accuracy and provide actionable feedback for documentation improvement.
 """
 
     # Hybrid scoring weights (should sum to 1.0)
@@ -64,3 +161,11 @@ You are an expert clinical documentation reviewer. Assess the factual consistenc
 
     # Feature flags
     USE_NINE_RINGS = os.environ.get('USE_NINE_RINGS', '').lower() in {'1', 'true', 'yes'}
+    
+    # Chain of Thought / Reasoning Configuration
+    ENABLE_REASONING_SUMMARY = os.environ.get('ENABLE_REASONING_SUMMARY', 'true').lower() in {'1', 'true', 'yes'}
+    REASONING_SUMMARY_TYPE = os.environ.get('REASONING_SUMMARY_TYPE', 'concise')  # Options: 'auto', 'concise', 'detailed'
+    
+    # Preview API version for responses.create() with reasoning summaries
+    AZURE_OPENAI_PREVIEW_API_VERSION = os.environ.get('AZURE_OPENAI_PREVIEW_API_VERSION', '2025-04-01-preview')
+    USE_RESPONSES_API_FOR_REASONING = os.environ.get('USE_RESPONSES_API_FOR_REASONING', 'true').lower() in {'1', 'true', 'yes'}

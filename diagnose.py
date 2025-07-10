@@ -33,7 +33,8 @@ def check_environment_vars():
         return False
     
     logger.info("All critical environment variables are set.")
-    logger.info(f"AZURE_OPENAI_ENDPOINT: {Config.AZURE_OPENAI_ENDPOINT[:10]}...")
+    endpoint_preview = Config.AZURE_OPENAI_ENDPOINT[:10] + "..." if Config.AZURE_OPENAI_ENDPOINT else "None"
+    logger.info(f"AZURE_OPENAI_ENDPOINT: {endpoint_preview}")
     logger.info(f"AZURE_OPENAI_API_VERSION: {Config.AZURE_OPENAI_API_VERSION}")
     logger.info(f"AZURE_O3_DEPLOYMENT: {Config.AZURE_O3_DEPLOYMENT}")
     return True
@@ -51,9 +52,13 @@ def test_openai_connection(model_precision="medium"):
             model_name = Config.AZURE_O3_LOW_DEPLOYMENT
         else:
             model_name = Config.AZURE_O3_DEPLOYMENT
+        from openai.types.chat import ChatCompletionMessageParam
+        from typing import List
+        
+        messages: List[ChatCompletionMessageParam] = [{"role": "user", "content": "Hello, this is a test."}]
         response = judge.client.chat.completions.create(
             model=model_name,
-            messages=[{"role": "user", "content": "Hello, this is a test."}],
+            messages=messages,
             max_completion_tokens=10
         )
         logger.info("Connection to OpenAI API successful!")

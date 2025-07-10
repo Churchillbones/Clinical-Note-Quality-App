@@ -37,9 +37,12 @@ if exist .env (
     echo ERROR: .env file not found!
     echo Creating a template .env file for you to fill in...
     echo # Azure OpenAI API Configuration > .env
-    echo AZ_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/ >> .env
-    echo AZ_OPENAI_KEY=your-api-key-goes-here >> .env
-    echo AZ_O3_DEPLOYMENT=gpt-o3 >> .env
+    echo AZURE_API_KEY=your-api-key-goes-here >> .env
+    echo AZURE_ENDPOINT=https://your-resource-name.openai.azure.com/ >> .env
+    echo MODEL_NAME=gpt-4o >> .env
+    echo API_VERSION=2024-02-15-preview >> .env
+    echo AZ_O3_DEPLOYMENT=o3-mini >> .env
+    echo AZ_O3_API_VERSION=2025-01-01-preview >> .env
     echo # Model precision: low, medium, or high (default: medium) >> .env
     echo MODEL_PRECISION=medium >> .env
     echo Created .env file. Please edit it with your actual Azure OpenAI credentials.
@@ -50,20 +53,27 @@ if exist .env (
 rem Always verify credentials even if .env file exists
 echo Validating Azure OpenAI credentials...
     
-if not defined AZ_OPENAI_ENDPOINT (
-    echo ERROR: AZ_OPENAI_ENDPOINT environment variable is not set in .env file!
-    echo Please edit the .env file and add your Azure OpenAI endpoint.
+rem Check for endpoint (multiple possible names)
+if not defined AZ_OPENAI_ENDPOINT if not defined AZURE_ENDPOINT (
+    echo ERROR: Azure endpoint not set! Please set AZ_OPENAI_ENDPOINT or AZURE_ENDPOINT in .env file.
     exit /b 1
 ) else (
-    echo AZ_OPENAI_ENDPOINT is set.
+    echo Azure endpoint is set.
 )
 
-if not defined AZ_OPENAI_KEY (
-    echo ERROR: AZ_OPENAI_KEY environment variable is not set in .env file!
-    echo Please edit the .env file and add your Azure OpenAI API key.
+rem Check for API key (multiple possible names)
+if not defined AZ_OPENAI_KEY if not defined AZURE_API_KEY (
+    echo ERROR: Azure API key not set! Please set AZ_OPENAI_KEY or AZURE_API_KEY in .env file.
     exit /b 1
 ) else (
-    echo AZ_OPENAI_KEY is set.
+    echo Azure API key is set.
+)
+
+rem Check for API version
+if not defined API_VERSION (
+    echo WARNING: API_VERSION not set, will use default (2024-02-15-preview).
+) else (
+    echo API_VERSION is set to: %API_VERSION%
 )
 
 if not defined AZ_O3_DEPLOYMENT (

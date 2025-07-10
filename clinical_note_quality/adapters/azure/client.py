@@ -13,8 +13,10 @@ from functools import lru_cache
 from typing import Any, Dict, List, Protocol, runtime_checkable
 
 from openai import AzureOpenAI, APIError, APIConnectionError, RateLimitError, APIStatusError  # type: ignore
+from openai.types.chat import ChatCompletionMessageParam
 
 from clinical_note_quality import get_settings
+from .async_client import AsyncLLMClientProtocol, get_async_azure_llm_client, close_async_azure_client
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 class LLMClientProtocol(Protocol):
     """Public interface the services layer relies on."""
 
-    def chat_complete(self, *, messages: List[Dict[str, str]], model: str, **kwargs: Any) -> str: ...  # noqa: E501
+    def chat_complete(self, *, messages: List[ChatCompletionMessageParam], model: str, **kwargs: Any) -> str: ...  # noqa: E501
 
 
 class _AzureLLMClient(LLMClientProtocol):
@@ -34,6 +36,8 @@ class _AzureLLMClient(LLMClientProtocol):
 
     def __init__(self) -> None:
         settings = get_settings()
+        if not settings.AZURE_OPENAI_KEY or not settings.AZURE_OPENAI_ENDPOINT:
+            raise ValueError("Azure OpenAI credentials not configured")
         self._client = AzureOpenAI(
             api_key=settings.AZURE_OPENAI_KEY,
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
@@ -44,7 +48,7 @@ class _AzureLLMClient(LLMClientProtocol):
     # Public API
     # ------------------------------------------------------------------
 
-    def chat_complete(self, *, messages: List[Dict[str, str]], model: str, **kwargs: Any) -> str:  # noqa: D401,E501
+    def chat_complete(self, *, messages: List[ChatCompletionMessageParam], model: str, **kwargs: Any) -> str:  # noqa: D401,E501
         """Return *content* string from chat completion with basic exponential back-off."""
 
         payload: Dict[str, Any] = {
@@ -55,8 +59,11 @@ class _AzureLLMClient(LLMClientProtocol):
         retry = 0
         while True:
             try:
-                response = self._client.chat.completions.create(**payload)  # type: ignore[arg-type]
-                return response.choices[0].message.content.strip()
+                response = self._client.chat.completions.create(**payload)
+                content = response.choices[0].message.content
+                if content is None:
+                    raise ValueError("Received None content from OpenAI API")
+                return content.strip()
             except (RateLimitError, APIConnectionError) as exc:
                 if retry >= self._MAX_RETRIES:
                     raise

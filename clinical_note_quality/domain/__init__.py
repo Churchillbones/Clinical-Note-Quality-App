@@ -1,17 +1,39 @@
-"""Domain layer – pure business objects (dataclasses, enums, exceptions).""" 
+"""Domain models and exceptions for clinical note quality assessment."""
 
+from .exceptions import (
+    ClinicalNoteQualityError,
+    FactualityServiceError,
+    GradingServiceError,
+    HeuristicServiceError,
+    OpenAIAuthError,
+    OpenAIResponseError,
+    OpenAIServiceError,
+    PDQIServiceError,
+)
 from .models import (
-    PDQIDimension,
-    PDQIScore,
-    HeuristicResult,
     FactualityResult,
+    HeuristicResult,
     HybridResult,
+    PDQIDimension,
+    PDQIDimensionExplanation,
+    PDQIScore,
 )
 
 __all__ = [
-    "PDQIDimension",
-    "PDQIScore",
-    "HeuristicResult",
+    # Exceptions
+    "ClinicalNoteQualityError",
+    "FactualityServiceError", 
+    "GradingServiceError",
+    "HeuristicServiceError",
+    "OpenAIAuthError",
+    "OpenAIResponseError", 
+    "OpenAIServiceError",
+    "PDQIServiceError",
+    # Models
     "FactualityResult",
+    "HeuristicResult",
     "HybridResult",
+    "PDQIDimension",
+    "PDQIDimensionExplanation",
+    "PDQIScore",
 ] 

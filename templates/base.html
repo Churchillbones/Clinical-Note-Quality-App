@@ -4,24 +4,137 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinical Note Quality Assessment</title>
+    
+    <!-- Tailwind CSS with optimized loading -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'clinical': {
+                            50: '#f0f9ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- HTMX for enhanced interactions -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Performance optimizations -->
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    
+    <!-- Progressive enhancement for file drag/drop -->
+    <style>
+        .drop-zone {
+            transition: all 0.3s ease;
+        }
+        .drop-zone.dragover {
+            background-color: #dbeafe;
+            border-color: #3b82f6;
+            transform: scale(1.02);
+        }
+        
+        /* Loading animations */
+        @keyframes pulse-clinical {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .pulse-clinical {
+            animation: pulse-clinical 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* Progress bar */
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+    </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <nav class="bg-blue-600 text-white p-4">
-        <div class="container mx-auto">
-            <h1 class="text-xl font-bold">Clinical Note Quality Assessment</h1>
-            <p class="text-blue-100">PDQI-9 + Hybrid Analysis</p>
+<body class="bg-gradient-to-br from-clinical-50 to-gray-100 min-h-screen">
+    <!-- Navigation with improved accessibility -->
+    <nav class="bg-clinical-600 text-white shadow-lg" role="navigation" aria-label="Main navigation">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-16">
+                <div>
+                    <h1 class="text-xl font-bold">Clinical Note Quality Assessment</h1>
+                    <p class="text-clinical-100 text-sm">PDQI-9 + Hybrid Analysis</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/metrics" class="text-clinical-100 hover:text-white text-sm" 
+                       target="_blank" rel="noopener">
+                        📊 Metrics
+                    </a>
+                    <button id="theme-toggle" class="text-clinical-100 hover:text-white" 
+                            aria-label="Toggle dark mode">
+                        🌙
+                    </button>
+                </div>
+            </div>
         </div>
     </nav>
     
-    <main class="container mx-auto px-4 py-8">
+    <!-- Main content with improved accessibility -->
+    <main class="container mx-auto px-4 py-8" role="main">
+        <!-- Global loading indicator -->
+        <div id="global-loading" class="fixed top-20 right-4 bg-white rounded-lg shadow-lg p-4 z-50 hidden">
+            <div class="flex items-center space-x-3">
+                <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-clinical-600"></div>
+                <span class="text-sm font-medium text-gray-700">Processing...</span>
+            </div>
+        </div>
+        
         {% block content %}{% endblock %}
     </main>
     
-    <footer class="bg-gray-800 text-white p-4 mt-8">
-        <div class="container mx-auto text-center">
-            <p>&copy; 2025 Clinical Documentation Quality System for Lambient Scribe</p>
+    <!-- Footer with enhanced styling -->
+    <footer class="bg-gray-800 text-white py-6 mt-12" role="contentinfo">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-gray-300">&copy; 2025 Clinical Documentation Quality System</p>
+            <p class="text-gray-400 text-sm mt-1">Powered by PDQI-9 Assessment Framework</p>
         </div>
     </footer>
+    
+    <!-- Enhanced JavaScript for better UX -->
+    <script>
+        // HTMX event handling for loading states
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            document.getElementById('global-loading')?.classList.remove('hidden');
+        });
+        
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            document.getElementById('global-loading')?.classList.add('hidden');
+        });
+        
+        // Dark mode toggle (optional enhancement)
+        document.getElementById('theme-toggle')?.addEventListener('click', function() {
+            document.documentElement.classList.toggle('dark');
+            this.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+        });
+        
+        // Accessibility improvements
+        document.addEventListener('DOMContentLoaded', function() {
+            // Focus management for form submissions
+            document.body.addEventListener('htmx:afterRequest', function(evt) {
+                if (evt.detail.successful) {
+                    // Announce completion to screen readers
+                    const announcement = document.createElement('div');
+                    announcement.setAttribute('aria-live', 'polite');
+                    announcement.setAttribute('aria-atomic', 'true');
+                    announcement.className = 'sr-only';
+                    announcement.textContent = 'Note grading completed';
+                    document.body.appendChild(announcement);
+                    setTimeout(() => document.body.removeChild(announcement), 1000);
+                }
+            });
+        });
+    </script>
 </body>
 </html> 

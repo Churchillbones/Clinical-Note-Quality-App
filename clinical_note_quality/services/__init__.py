@@ -3,7 +3,7 @@
 from .pdqi_service import PDQIService, get_pdqi_service
 from .heuristic_service import HeuristicService, get_heuristic_service
 from .factuality_service import FactualityService, get_factuality_service
-from .grading_service import GradingService
+from .grading_service import GradingService, grade_note_hybrid
 
 __all__ = [
     "PDQIService",
@@ -13,4 +13,5 @@ __all__ = [
     "get_heuristic_service",
     "get_factuality_service",
     "GradingService",
+    "grade_note_hybrid",  # Legacy compatibility
 ] 

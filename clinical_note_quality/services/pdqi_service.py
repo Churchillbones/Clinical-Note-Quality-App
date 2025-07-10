@@ -42,18 +42,66 @@ class O3Strategy(PDQIService):
         numeric_scores = {
             k: float(raw[k]) for k in PDQIDimension.numeric_keys() if k in raw
         }
+        
+        # Elite Python: Extract enhanced narrative fields
+        dimension_explanations = []
+        if "dimension_explanations" in raw and isinstance(raw["dimension_explanations"], list):
+            from clinical_note_quality.domain import PDQIDimensionExplanation
+            for exp_data in raw["dimension_explanations"]:
+                if isinstance(exp_data, dict):
+                    dimension_explanations.append(PDQIDimensionExplanation(
+                        dimension=exp_data.get("dimension", ""),
+                        score=float(exp_data.get("score", 0)),
+                        narrative=exp_data.get("narrative", ""),
+                        evidence_excerpts=exp_data.get("evidence_excerpts", []),
+                        improvement_suggestions=exp_data.get("improvement_suggestions", [])
+                    ))
+        
         return PDQIScore(
             scores=numeric_scores,
             summary=raw.get("summary", ""),
             rationale=raw.get("rationale", ""),
+            model_provenance="o3",
+            dimension_explanations=dimension_explanations,
+            scoring_rationale=raw.get("scoring_rationale", "")
         )
 
 
 class NineRingsStrategy(PDQIService):
-    """Placeholder – implemented in Phase 2."""
+    """Nine Rings strategy that evaluates each PDQI dimension separately using async agents."""
+
+    def __init__(self) -> None:
+        from agents.orchestrator import NineRingsOrchestrator
+        self._orchestrator = NineRingsOrchestrator()
 
     def score(self, note: str, *, precision: str = "medium") -> PDQIScore:  # noqa: D401
-        raise NotImplementedError("Nine-Rings strategy not yet implemented.")
+        """Score using Nine Rings orchestrator with async evaluation."""
+        import asyncio
+        
+        try:
+            # Run the async orchestrator in the current event loop
+            loop = asyncio.get_running_loop()
+            # If we're already in an event loop, run in a thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, self._orchestrator.evaluate(note))
+                raw_result = future.result()
+        except RuntimeError:
+            # No event loop running, we can use asyncio.run directly
+            raw_result = asyncio.run(self._orchestrator.evaluate(note))
+        
+        # Convert to domain model format
+        numeric_scores = {
+            k: float(v) for k, v in raw_result.items() 
+            if k in PDQIDimension.numeric_keys() and isinstance(v, (int, float))
+        }
+        
+        return PDQIScore(
+            scores=numeric_scores,
+            summary=raw_result.get("summary", ""),
+            rationale=raw_result.get("rationale", ""),
+            model_provenance="nine_rings",
+        )
 
 
 # ---------------------------------------------------------------------------

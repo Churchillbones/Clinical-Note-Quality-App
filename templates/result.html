@@ -2,225 +2,617 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold">Assessment Results</h2>
-            <a href="/" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                Grade Another Note
-            </a>
-        </div>
-        
-        <!-- AI Narrative Summary -->
-        <div class="mb-6">
-            <h3 class="text-xl font-semibold mb-4 text-blue-700">AI Narrative Summary</h3>
-            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg text-gray-800">
-                <p class="mb-2 font-medium">PDQI-9 Summary:</p>
-                <p class="italic">{{ result.pdqi_scores.summary }}</p>
-                {% if result.factuality_analysis.summary %}
-                <hr class="my-3">
-                <p class="mb-2 font-medium">Factuality Summary:</p>
-                <p class="italic">{{ result.factuality_analysis.summary }}</p>
-                {% endif %}
+    <!-- Tab Navigation -->
+    {% if result.chain_of_thought and result.chain_of_thought|length > 0 %}
+    <div class="mb-4">
+        <nav class="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+            <button id="results-tab" class="tab-button active flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors duration-200 bg-white text-blue-600 shadow-sm" data-target="results-content">
+                📊 Analysis Results
+            </button>
+            <button id="reasoning-tab" class="tab-button flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors duration-200 text-gray-600 hover:text-gray-900" data-target="reasoning-content">
+                🧠 AI Reasoning Analysis Log
+            </button>
+        </nav>
+    </div>
+    {% endif %}
+
+    <!-- Results Content Tab -->
+    <div id="results-content" class="tab-content">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">Assessment Results</h2>
+                <a href="/" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Grade Another Note
+                </a>
             </div>
-        </div>
-        <!-- End AI Narrative Summary -->
-        
-        <!-- Overall Score -->
-        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-6">
-            <div class="text-center">
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">Overall Quality Score</h3>
-                <div class="text-4xl font-bold text-blue-600 mb-2">
-                    {{ result.hybrid_score }}/5.0
-                </div>
-                <div class="text-2xl font-semibold 
-                    {% if result.overall_grade == 'A' %}text-green-600
-                    {% elif result.overall_grade == 'B' %}text-blue-600
-                    {% elif result.overall_grade == 'C' %}text-yellow-600
-                    {% elif result.overall_grade == 'D' %}text-orange-600
-                    {% else %}text-red-600{% endif %}">
-                    Grade: {{ result.overall_grade }}
-                </div>
-            </div>
-        </div>
-        
-        <!-- PDQI-9 Scores -->
-        <div class="mb-6">
-            <h3 class="text-xl font-semibold mb-4">PDQI-9 Dimension Scores</h3>
-            <div class="grid md:grid-cols-3 gap-4">
-                {% for dimension, score in result.pdqi_scores.items() %}
-                {% if dimension != 'summary' %}
-                <div class="bg-gray-50 rounded-lg p-4">
-                    <div class="flex justify-between items-center">
-                        <span class="font-medium capitalize">{{ dimension.replace('_', ' ') }}</span>
-                        <span class="text-lg font-bold 
-                            {% if score|to_number >= 4 %}text-green-600
-                            {% elif score|to_number >= 3 %}text-blue-600
-                            {% elif score|to_number >= 2 %}text-yellow-600
+            
+            <!-- Executive Summary Dashboard -->
+            <div class="mb-6">
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6">
+                    <div class="text-center">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Overall Quality Score</h3>
+                        <div class="text-4xl font-bold text-blue-600 mb-2">
+                            {{ result.hybrid_score }}/5.0
+                        </div>
+                        <div class="text-2xl font-semibold 
+                            {% if result.overall_grade == 'A' %}text-green-600
+                            {% elif result.overall_grade == 'B' %}text-blue-600
+                            {% elif result.overall_grade == 'C' %}text-yellow-600
+                            {% elif result.overall_grade == 'D' %}text-orange-600
                             {% else %}text-red-600{% endif %}">
-                            {{ score }}/5
-                        </span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                        <div class="bg-blue-600 h-2 rounded-full score-bar-{{ ((score|to_number / 5) * 100)|int }}"></div>
-                    </div>
-                </div>
-                {% endif %}
-                {% endfor %}
-            </div>
-            <div class="mt-4 text-center">
-                <span class="text-lg font-semibold">PDQI-9 Average: {{ result.pdqi_average }}/5.0</span>
-            </div>
-        </div>
-        
-        <!-- Heuristic Analysis -->
-        <div class="mb-6">
-            <h3 class="text-xl font-semibold mb-4">Heuristic Analysis</h3>
-            <div class="grid md:grid-cols-2 gap-6">
-                <div class="space-y-4">
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <h4 class="font-medium mb-2">Quality Metrics</h4>
-                        <div class="space-y-2">
-                            <div class="flex justify-between">
-                                <span>Length Score:</span>
-                                <span class="font-semibold">{{ result.heuristic_analysis.length_score }}/5.0</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Redundancy Score:</span>
-                                <span class="font-semibold">{{ result.heuristic_analysis.redundancy_score }}/5.0</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Structure Score:</span>
-                                <span class="font-semibold">{{ result.heuristic_analysis.structure_score }}/5.0</span>
-                            </div>
-                            <hr class="my-2">
-                            <div class="flex justify-between font-semibold">
-                                <span>Composite Score:</span>
-                                <span>{{ result.heuristic_analysis.composite_score }}/5.0</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="space-y-4">
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <h4 class="font-medium mb-2">Document Statistics</h4>
-                        <div class="space-y-2">
-                            <div class="flex justify-between">
-                                <span>Word Count:</span>
-                                <span class="font-semibold">{{ result.heuristic_analysis.word_count }}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Character Count:</span>
-                                <span class="font-semibold">{{ result.heuristic_analysis.character_count }}</span>
-                            </div>
+                            Grade: {{ result.overall_grade }}
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Factuality Analysis -->
-        <div class="mb-6">
-            <h3 class="text-xl font-semibold mb-4">Factuality Analysis</h3>
-            <div class="bg-gray-50 rounded-lg p-4">
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-blue-600">
-                            {{ result.factuality_analysis.consistency_score }}
+
+            <!-- AI Narrative Summary - Progressive Disclosure -->
+            <div class="mb-6">
+                <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div class="card-header p-4 cursor-pointer" data-target="ai-summary">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-3">
+                                <h3 class="text-xl font-semibold text-blue-700">🤖 AI Analysis Summary</h3>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="summary-preview text-sm text-gray-600">
+                                    Click to view comprehensive AI narrative explanations
+                                </div>
+                                <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
                         </div>
-                        <div class="text-sm text-gray-600">Consistency Score</div>
                     </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-blue-600">
-                            {{ result.factuality_analysis.claims_checked }}
+                    
+                    <div id="ai-summary" class="card-content hidden border-t border-gray-100">
+                        <div class="p-4 space-y-4">
+                            {% if result.pdqi_scores.summary %}
+                            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg">
+                                <p class="mb-2 font-medium text-blue-800">PDQI-9 Analysis:</p>
+                                <p class="italic text-blue-700">{{ result.pdqi_scores.summary }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if result.pdqi_scores.scoring_rationale %}
+                            <div class="bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-lg">
+                                <p class="mb-2 font-medium text-indigo-800">Scoring Methodology:</p>
+                                <p class="text-sm text-indigo-700">{{ result.pdqi_scores.scoring_rationale }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if result.factuality_analysis.summary %}
+                            <div class="bg-purple-50 border-l-4 border-purple-400 p-4 rounded-lg">
+                                <p class="mb-2 font-medium text-purple-800">Factuality Assessment:</p>
+                                <p class="italic text-purple-700">{{ result.factuality_analysis.summary }}</p>
+                            </div>
+                            {% endif %}
                         </div>
-                        <div class="text-sm text-gray-600">Claims Checked</div>
                     </div>
                 </div>
-                {% if result.factuality_analysis.claims and result.factuality_analysis.claims|length > 0 %}
-                <div class="mt-6">
-                    <h4 class="font-medium mb-2">Claim-Level Results</h4>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full text-sm border">
-                            <thead>
-                                <tr class="bg-blue-100">
-                                    <th class="px-2 py-1 border">Claim</th>
-                                    <th class="px-2 py-1 border">Support</th>
-                                    <th class="px-2 py-1 border">Explanation</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for claim in result.factuality_analysis.claims %}
-                                <tr>
-                                    <td class="px-2 py-1 border">{{ claim.claim }}</td>
-                                    <td class="px-2 py-1 border">
-                                        <span class="font-semibold {% if claim.support == 'Supported' %}text-green-600{% elif claim.support == 'Not Supported' %}text-red-600{% else %}text-yellow-600{% endif %}">
-                                            {{ claim.support }}
+            </div>
+
+            <!-- PDQI-9 Analysis - Progressive Disclosure -->
+            <div class="mb-6">
+                <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div class="card-header p-4 cursor-pointer" data-target="pdqi-analysis">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-4">
+                                <h3 class="text-xl font-semibold">📋 PDQI-9 Clinical Documentation</h3>
+                                <span class="text-lg font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+                                    Average: {{ result.pdqi_average }}/5.0
+                                </span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="summary-preview text-sm text-gray-600">
+                                    9 dimensions • Click to view detailed analysis
+                                </div>
+                                <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="pdqi-analysis" class="card-content hidden border-t border-gray-100">
+                        <div class="p-4">
+                            <!-- Dimension Score Grid -->
+                            <div class="grid md:grid-cols-3 gap-4 mb-6">
+                                {% for dimension, score in result.pdqi_scores.items() %}
+                                {% if dimension != 'summary' and dimension != 'scoring_rationale' and dimension != 'dimension_explanations' %}
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="font-medium capitalize">{{ dimension.replace('_', ' ') }}</span>
+                                        <span class="text-lg font-bold 
+                                            {% if score|to_number >= 4 %}text-green-600
+                                            {% elif score|to_number >= 3 %}text-blue-600
+                                            {% elif score|to_number >= 2 %}text-yellow-600
+                                            {% else %}text-red-600{% endif %}">
+                                            {{ score }}/5
                                         </span>
-                                    </td>
-                                    <td class="px-2 py-1 border">{{ claim.explanation }}</td>
-                                </tr>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-blue-600 h-2 rounded-full score-bar-{{ ((score|to_number / 5) * 100)|int }}"></div>
+                                    </div>
+                                </div>
+                                {% endif %}
                                 {% endfor %}
-                            </tbody>
-                        </table>
+                            </div>
+                            
+                            <!-- Detailed Dimension Explanations -->
+                            {% if result.pdqi_scores.dimension_explanations and result.pdqi_scores.dimension_explanations|length > 0 %}
+                            <div class="space-y-3">
+                                <h4 class="text-lg font-semibold text-blue-700 mb-3">Detailed Dimension Analysis</h4>
+                                {% for explanation in result.pdqi_scores.dimension_explanations %}
+                                <div class="dimension-card bg-white border border-gray-100 rounded-lg">
+                                    <div class="dimension-header p-3 cursor-pointer" data-target="dimension-{{ loop.index0 }}">
+                                        <div class="flex justify-between items-center">
+                                            <div class="flex items-center space-x-3">
+                                                <h5 class="font-semibold capitalize text-gray-800">
+                                                    {{ explanation.dimension.replace('_', ' ') }}
+                                                </h5>
+                                                <span class="font-bold px-2 py-1 rounded-full text-sm
+                                                    {% if explanation.score >= 4 %}bg-green-100 text-green-800
+                                                    {% elif explanation.score >= 3 %}bg-blue-100 text-blue-800
+                                                    {% elif explanation.score >= 2 %}bg-yellow-100 text-yellow-800
+                                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                                    {{ explanation.score }}/5
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <div class="text-xs text-gray-500 max-w-sm truncate">
+                                                    {{ explanation.narrative|truncate(50) }}
+                                                </div>
+                                                <svg class="dimension-icon w-4 h-4 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="dimension-{{ loop.index0 }}" class="dimension-content hidden border-t border-gray-100">
+                                        <div class="p-3 space-y-3">
+                                            <div class="text-gray-700 text-sm leading-relaxed">
+                                                {{ explanation.narrative }}
+                                            </div>
+                                            
+                                            {% if explanation.evidence_excerpts and explanation.evidence_excerpts|length > 0 %}
+                                            <div class="bg-blue-50 rounded p-2">
+                                                <h6 class="text-xs font-medium text-blue-600 mb-1">Evidence:</h6>
+                                                {% for excerpt in explanation.evidence_excerpts %}
+                                                <div class="text-xs italic text-blue-800 mb-1">"{{ excerpt }}"</div>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if explanation.improvement_suggestions and explanation.improvement_suggestions|length > 0 %}
+                                            <div class="bg-green-50 rounded p-2">
+                                                <h6 class="text-xs font-medium text-green-600 mb-1">Suggestions:</h6>
+                                                <ul class="text-xs text-green-800 space-y-1">
+                                                    {% for suggestion in explanation.improvement_suggestions %}
+                                                    <li>• {{ suggestion }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-                {% endif %}
             </div>
-        </div>
-        
-        <!-- Chain of Thought (Debug) -->
-        {% if result.chain_of_thought and result.chain_of_thought|length > 0 %}
-        <div class="bg-gray-100 rounded-lg p-4 mb-6">
-            <details class="text-sm">
-                <summary class="font-medium cursor-pointer text-blue-700">AI Chain of Thought (click to expand)</summary>
-                <pre class="whitespace-pre-wrap mt-3">{{ result.chain_of_thought }}</pre>
-            </details>
-        </div>
-        {% endif %}
-        
-        <!-- Scoring Weights -->
-        <div class="bg-blue-50 rounded-lg p-4">
-            <h4 class="font-medium mb-2">Hybrid Scoring Weights</h4>
-            <div class="grid grid-cols-3 gap-4 text-sm">
-                <div class="text-center">
-                    <div class="font-semibold">PDQI-9</div>
-                    <div>{{ (result.weights_used.pdqi_weight * 100)|int }}%</div>
+            
+            <!-- Factuality Analysis - Progressive Disclosure -->
+            <div class="mb-6">
+                <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div class="card-header p-4 cursor-pointer" data-target="factuality-analysis">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-4">
+                                <h3 class="text-xl font-semibold">🔍 Factuality Analysis</h3>
+                                <div class="flex space-x-3 text-sm">
+                                    <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                        Score: {{ result.factuality_analysis.consistency_score }}
+                                    </span>
+                                    <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded">
+                                        {{ result.factuality_analysis.claims_checked }} Claims
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="summary-preview text-sm text-gray-600">
+                                    Click to view claim-level analysis
+                                </div>
+                                <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="factuality-analysis" class="card-content hidden border-t border-gray-100">
+                        <div class="p-4 space-y-4">
+                            {% if result.factuality_analysis.consistency_narrative %}
+                            <div class="bg-purple-50 rounded-lg p-3">
+                                <h5 class="font-medium text-purple-700 mb-2">Overall Consistency Assessment</h5>
+                                <p class="text-purple-800 text-sm">{{ result.factuality_analysis.consistency_narrative }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if result.factuality_analysis.claims and result.factuality_analysis.claims|length > 0 %}
+                            <div>
+                                <h5 class="font-medium text-orange-600 mb-3">Individual Claims Analysis</h5>
+                                <div class="space-y-2">
+                                    {% for claim in result.factuality_analysis.claims %}
+                                    <div class="bg-orange-50 rounded-lg p-3 border-l-4 border-orange-400">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <span class="font-medium text-orange-800 text-sm">{{ claim.claim }}</span>
+                                            <span class="px-2 py-1 rounded text-xs font-semibold
+                                                {% if claim.support == 'Supported' %}bg-green-100 text-green-800
+                                                {% elif claim.support == 'Not Supported' %}bg-red-100 text-red-800
+                                                {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                                {{ claim.support }}
+                                            </span>
+                                        </div>
+                                        <p class="text-orange-700 text-xs">{{ claim.explanation }}</p>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-                <div class="text-center">
-                    <div class="font-semibold">Heuristics</div>
-                    <div>{{ (result.weights_used.heuristic_weight * 100)|int }}%</div>
+            </div>
+
+            <!-- Heuristic Analysis - Progressive Disclosure -->
+            <div class="mb-6">
+                <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div class="card-header p-4 cursor-pointer" data-target="heuristic-analysis">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-4">
+                                <h3 class="text-xl font-semibold">📊 Document Quality Metrics</h3>
+                                <span class="text-lg font-bold bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                                    {{ result.heuristic_analysis.composite_score }}/5.0
+                                </span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="summary-preview text-sm text-gray-600">
+                                    Length • Structure • Redundancy analysis
+                                </div>
+                                <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="heuristic-analysis" class="card-content hidden border-t border-gray-100">
+                        <div class="p-4">
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <div class="space-y-4">
+                                    <div class="bg-gray-50 rounded-lg p-4">
+                                        <h5 class="font-medium mb-3">Quality Scores</h5>
+                                        <div class="space-y-3">
+                                            <div class="flex justify-between items-center">
+                                                <span>Length:</span>
+                                                <div class="flex items-center space-x-2">
+                                                    <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                        <div class="bg-blue-600 h-2 rounded-full score-bar-{{ ((result.heuristic_analysis.length_score|to_number / 5) * 100)|int }}"></div>
+                                                    </div>
+                                                    <span class="font-semibold text-sm">{{ result.heuristic_analysis.length_score }}/5</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-between items-center">
+                                                <span>Structure:</span>
+                                                <div class="flex items-center space-x-2">
+                                                    <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                        <div class="bg-blue-600 h-2 rounded-full score-bar-{{ ((result.heuristic_analysis.structure_score|to_number / 5) * 100)|int }}"></div>
+                                                    </div>
+                                                    <span class="font-semibold text-sm">{{ result.heuristic_analysis.structure_score }}/5</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-between items-center">
+                                                <span>Redundancy:</span>
+                                                <div class="flex items-center space-x-2">
+                                                    <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                        <div class="bg-blue-600 h-2 rounded-full score-bar-{{ ((result.heuristic_analysis.redundancy_score|to_number / 5) * 100)|int }}"></div>
+                                                    </div>
+                                                    <span class="font-semibold text-sm">{{ result.heuristic_analysis.redundancy_score }}/5</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div class="bg-gray-50 rounded-lg p-4">
+                                        <h5 class="font-medium mb-3">Document Stats</h5>
+                                        <div class="space-y-2 text-sm">
+                                            <div class="flex justify-between">
+                                                <span>Words:</span>
+                                                <span class="font-semibold">{{ result.heuristic_analysis.word_count }}</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>Characters:</span>
+                                                <span class="font-semibold">{{ result.heuristic_analysis.character_count }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-center">
-                    <div class="font-semibold">Factuality</div>
-                    <div>{{ (result.weights_used.factuality_weight * 100)|int }}%</div>
+            </div>
+
+            <!-- Scoring Methodology -->
+            <div class="bg-blue-50 rounded-lg p-4">
+                <h4 class="font-medium mb-2">Hybrid Scoring Weights</h4>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div class="text-center">
+                        <div class="font-semibold">PDQI-9</div>
+                        <div>{{ (result.weights_used.pdqi_weight * 100)|int }}%</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-semibold">Heuristics</div>
+                        <div>{{ (result.weights_used.heuristic_weight * 100)|int }}%</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-semibold">Factuality</div>
+                        <div>{{ (result.weights_used.factuality_weight * 100)|int }}%</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- AI Reasoning Process Tab -->
+    {% if (result.reasoning_analysis_log and result.reasoning_analysis_log|length > 0) or (result.chain_of_thought and result.chain_of_thought|length > 0) %}
+    <div id="reasoning-content" class="tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold">🧠 AI Reasoning Process Analysis Log</h2>
+                    <p class="text-gray-600 text-sm mt-1">Comprehensive step-by-step analysis and decision-making process</p>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="copyToClipboard()" class="bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-200 transition-colors">
+                        📋 Copy Text
+                    </button>
+                    <button onclick="downloadReasoning()" class="bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm hover:bg-blue-200 transition-colors">
+                        💾 Download
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Primary Reasoning Analysis Log -->
+            {% if result.reasoning_analysis_log and result.reasoning_analysis_log|length > 0 %}
+            <div class="reasoning-container bg-gray-50 rounded-lg p-4 border mb-6">
+                <div class="bg-white rounded border p-4 max-h-96 overflow-y-auto">
+                    <pre id="reasoning-text" class="whitespace-pre-wrap text-sm font-mono leading-relaxed text-gray-800">{{ result.reasoning_analysis_log }}</pre>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Fallback to Chain of Thought if Analysis Log not available -->
+            {% if not result.reasoning_analysis_log and result.chain_of_thought and result.chain_of_thought|length > 0 %}
+            <div class="reasoning-container bg-gray-50 rounded-lg p-4 border mb-6">
+                <div class="bg-white rounded border p-4 max-h-96 overflow-y-auto">
+                    <pre id="reasoning-text" class="whitespace-pre-wrap text-sm font-mono leading-relaxed text-gray-800">{{ result.chain_of_thought }}</pre>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="mt-4 text-xs text-gray-500">
+                <p><strong>Note:</strong> This comprehensive analysis log shows the internal reasoning process of the O3 AI model during assessment. 
+                It includes detailed component analysis, scoring methodology, claim-level factuality assessment, and the mathematical integration process that led to the final hybrid score and grade.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching functionality
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            
+            // Update button states
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active', 'bg-white', 'text-blue-600', 'shadow-sm');
+                btn.classList.add('text-gray-600', 'hover:text-gray-900');
+            });
+            
+            this.classList.add('active', 'bg-white', 'text-blue-600', 'shadow-sm');
+            this.classList.remove('text-gray-600', 'hover:text-gray-900');
+            
+            // Update content visibility
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            document.getElementById(targetId).classList.remove('hidden');
+        });
+    });
+    
+    // Main narrative cards
+    const narrativeCards = document.querySelectorAll('.narrative-card');
+    narrativeCards.forEach(initializeCard);
+    
+    // Dimension cards (nested)
+    const dimensionCards = document.querySelectorAll('.dimension-card');
+    dimensionCards.forEach(initializeDimensionCard);
+    
+    function initializeCard(card) {
+        const header = card.querySelector('.card-header');
+        const content = card.querySelector('.card-content');
+        const expandIcon = card.querySelector('.expand-icon');
+        
+        header.addEventListener('click', function() {
+            toggleCard(content, expandIcon, header);
+        });
+        
+        setupAccessibility(header);
+    }
+    
+    function initializeDimensionCard(card) {
+        const header = card.querySelector('.dimension-header');
+        const content = card.querySelector('.dimension-content');
+        const expandIcon = card.querySelector('.dimension-icon');
+        
+        header.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleCard(content, expandIcon, header);
+        });
+        
+        setupAccessibility(header);
+    }
+    
+    function toggleCard(content, expandIcon, header) {
+        const isExpanded = !content.classList.contains('hidden');
+        content.classList.toggle('hidden');
+        expandIcon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+        header.setAttribute('aria-expanded', !isExpanded);
+    }
+    
+    function setupAccessibility(header) {
+        header.setAttribute('role', 'button');
+        header.setAttribute('aria-expanded', 'false');
+        header.setAttribute('tabindex', '0');
+        
+        header.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                header.click();
+            }
+        });
+    }
+});
+
+// Utility functions for reasoning tab
+function copyToClipboard() {
+    const reasoningText = document.getElementById('reasoning-text').textContent;
+    navigator.clipboard.writeText(reasoningText).then(function() {
+        // Visual feedback
+        const button = event.target;
+        const originalText = button.textContent;
+        button.textContent = '✅ Copied!';
+        button.classList.add('bg-green-100', 'text-green-700');
+        button.classList.remove('bg-gray-100', 'text-gray-700');
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove('bg-green-100', 'text-green-700');
+            button.classList.add('bg-gray-100', 'text-gray-700');
+        }, 2000);
+    });
+}
+
+function downloadReasoning() {
+    const reasoningText = document.getElementById('reasoning-text').textContent;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `ai-reasoning-analysis-log-${timestamp}.txt`;
+    
+    // Create enhanced content with header
+    const enhancedContent = `Clinical Note Quality Assessment - AI Reasoning Analysis Log
+Generated: ${new Date().toLocaleString()}
+================================================================
+
+${reasoningText}
+
+================================================================
+Generated by Clinical Note Quality Assessment System using O3 reasoning models`;
+    
+    const blob = new Blob([enhancedContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    // Visual feedback
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = '✅ Downloaded!';
+    button.classList.add('bg-green-100', 'text-green-700');
+    button.classList.remove('bg-blue-100', 'text-blue-700');
+    
+    setTimeout(() => {
+        button.textContent = originalText;
+        button.classList.remove('bg-green-100', 'text-green-700');
+        button.classList.add('bg-blue-100', 'text-blue-700');
+    }, 2000);
+}
+</script>
+
 <style>
-/* Score bar width classes */
 .score-bar-0 { width: 0%; }
-.score-bar-5 { width: 5%; }
-.score-bar-10 { width: 10%; }
-.score-bar-15 { width: 15%; }
 .score-bar-20 { width: 20%; }
-.score-bar-25 { width: 25%; }
-.score-bar-30 { width: 30%; }
-.score-bar-35 { width: 35%; }
 .score-bar-40 { width: 40%; }
-.score-bar-45 { width: 45%; }
-.score-bar-50 { width: 50%; }
-.score-bar-55 { width: 55%; }
 .score-bar-60 { width: 60%; }
-.score-bar-65 { width: 65%; }
-.score-bar-70 { width: 70%; }
-.score-bar-75 { width: 75%; }
 .score-bar-80 { width: 80%; }
-.score-bar-85 { width: 85%; }
-.score-bar-90 { width: 90%; }
-.score-bar-95 { width: 95%; }
 .score-bar-100 { width: 100%; }
+
+.narrative-card, .dimension-card {
+    transition: all 0.2s ease-in-out;
+}
+
+.narrative-card:hover, .dimension-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-header:hover, .dimension-header:hover {
+    background-color: #f8fafc;
+}
+
+.expand-icon, .dimension-icon {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card-content, .dimension-content {
+    animation: slideDown 0.3s ease-out;
+}
+
+.tab-content {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.reasoning-container {
+    position: relative;
+}
+
+.reasoning-container pre {
+    line-height: 1.5;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 1000px;
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
 </style>
 {% endblock %}

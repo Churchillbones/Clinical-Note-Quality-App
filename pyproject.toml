@@ -1,11 +1,14 @@
 [project]
 name = "clinical-note-quality"
-version = "0.1.0"
+version = "2.0.0"
 description = "Clinical Note Quality Grader"
 authors = [{ name = "VHA STC" }]
 requires-python = ">=3.12"
 
 # Runtime (prod) dependencies live in legacy requirements.txt; keep minimal here for tooling.
+
+[project.scripts]
+clinical-note-quality = "clinical_note_quality.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -44,4 +47,5 @@ namespace_packages = true
 
 [tool.pytest.ini_options]
 addopts = "-q"
-python_files = "tests/*.py" 
+python_files = "tests/*.py"
+asyncio_mode = "auto" 

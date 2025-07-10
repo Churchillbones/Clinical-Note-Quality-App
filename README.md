@@ -1,6 +1,6 @@
 # Clinical Note Quality Assessment
 
-A Flask application (`app.py`) that grades clinical notes using the PDQI-9 rubric with Azure OpenAI O3, combined with heuristic analysis and factuality checking.
+A Flask application (`app.py`) that grades clinical notes using the PDQI-9 rubric with Azure OpenAI O3-mini, combined with heuristic analysis and factuality checking.
 
 ## Features
 

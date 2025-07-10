@@ -1,0 +1,589 @@
+<!-- Results loaded via HTMX -->
+<div id="results-container" class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mt-8 animate-fade-in">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6 pb-4 border-b">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Assessment Results</h2>
+            <p class="text-gray-600">Analysis completed successfully</p>
+        </div>
+        <div class="text-right">
+            <div class="text-3xl font-bold 
+                {% if result.overall_grade == 'A' %}text-green-600
+                {% elif result.overall_grade == 'B' %}text-blue-600
+                {% elif result.overall_grade == 'C' %}text-yellow-600
+                {% elif result.overall_grade == 'D' %}text-orange-600
+                {% else %}text-red-600{% endif %}">
+                {{ result.overall_grade }}
+            </div>
+            <div class="text-sm text-gray-500">Grade</div>
+            <div class="text-lg font-semibold">{{ "%.2f"|format(result.hybrid_score) }}/5.0</div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-3 gap-6 mb-8">
+        <div class="text-center p-4 bg-blue-50 rounded-lg">
+            <div class="text-2xl font-bold text-blue-700">{{ "%.1f"|format(result.pdqi_average) }}</div>
+            <div class="text-sm font-medium text-blue-600">PDQI Average</div>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-lg">
+            <div class="text-2xl font-bold text-green-700">{{ "%.1f"|format(result.heuristic_analysis.composite_score) }}</div>
+            <div class="text-sm font-medium text-green-600">Heuristic</div>
+        </div>
+        <div class="text-center p-4 bg-purple-50 rounded-lg">
+            <div class="text-2xl font-bold text-purple-700">{{ "%.1f"|format(result.factuality_analysis.consistency_score) }}</div>
+            <div class="text-sm font-medium text-purple-600">Factuality</div>
+        </div>
+    </div>
+
+    <!-- AI Narrative Summary - Progressive Disclosure -->
+    <div class="mb-6">
+        <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="card-header p-4 cursor-pointer" data-target="ai-summary">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <h3 class="text-lg font-semibold text-blue-700">🤖 AI Analysis Summary</h3>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="summary-preview text-sm text-gray-600">
+                            Click to view comprehensive AI narrative explanations
+                        </div>
+                        <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="ai-summary" class="card-content hidden border-t border-gray-100">
+                <div class="p-4 space-y-4">
+                    {% if result.pdqi_scores.summary %}
+                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg">
+                        <p class="mb-2 font-medium text-blue-800">PDQI-9 Analysis:</p>
+                        <p class="italic text-blue-700">{{ result.pdqi_scores.summary }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if result.pdqi_scores.scoring_rationale %}
+                    <div class="bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-lg">
+                        <p class="mb-2 font-medium text-indigo-800">Scoring Methodology:</p>
+                        <p class="text-sm text-indigo-700">{{ result.pdqi_scores.scoring_rationale }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if result.factuality_analysis.summary %}
+                    <div class="bg-purple-50 border-l-4 border-purple-400 p-4 rounded-lg">
+                        <p class="mb-2 font-medium text-purple-800">Factuality Assessment:</p>
+                        <p class="italic text-purple-700">{{ result.factuality_analysis.summary }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDQI-9 Analysis - Progressive Disclosure -->
+    <div class="mb-6">
+        <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="card-header p-4 cursor-pointer" data-target="pdqi-analysis">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <h3 class="text-lg font-semibold">📋 PDQI-9 Clinical Documentation</h3>
+                        <span class="text-lg font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+                            Average: {{ result.pdqi_average }}/5.0
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="summary-preview text-sm text-gray-600">
+                            9 dimensions • Click to view detailed analysis
+                        </div>
+                        <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="pdqi-analysis" class="card-content hidden border-t border-gray-100">
+                <div class="p-4">
+                    <!-- Dimension Score Grid -->
+                    <div class="grid md:grid-cols-3 gap-4 mb-6">
+                        {% for dimension, score in result.pdqi_scores.items() %}
+                        {% if dimension not in ['summary', 'scoring_rationale', 'dimension_explanations', 'rationale', 'model_provenance'] %}
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium capitalize">{{ dimension.replace('_', ' ') }}</span>
+                                <span class="text-lg font-bold 
+                                    {% if score|float >= 4 %}text-green-600
+                                    {% elif score|float >= 3 %}text-blue-600
+                                    {% elif score|float >= 2 %}text-yellow-600
+                                    {% else %}text-red-600{% endif %}">
+                                    {{ score }}/5
+                                </span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full score-bar-{{ (score|float * 20)|int }}"></div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Detailed Dimension Explanations -->
+                    {% if result.pdqi_scores.dimension_explanations and result.pdqi_scores.dimension_explanations|length > 0 %}
+                    <div class="space-y-3">
+                        <h4 class="text-lg font-semibold text-blue-700 mb-3">Detailed Dimension Analysis</h4>
+                        {% for explanation in result.pdqi_scores.dimension_explanations %}
+                        <div class="dimension-card bg-white border border-gray-100 rounded-lg">
+                            <div class="dimension-header p-3 cursor-pointer" data-target="dimension-{{ loop.index0 }}">
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center space-x-3">
+                                        <h5 class="font-semibold capitalize text-gray-800">
+                                            {{ explanation.dimension.replace('_', ' ') }}
+                                        </h5>
+                                        <span class="font-bold px-2 py-1 rounded-full text-sm
+                                            {% if explanation.score >= 4 %}bg-green-100 text-green-800
+                                            {% elif explanation.score >= 3 %}bg-blue-100 text-blue-800
+                                            {% elif explanation.score >= 2 %}bg-yellow-100 text-yellow-800
+                                            {% else %}bg-red-100 text-red-800{% endif %}">
+                                            {{ explanation.score }}/5
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="text-xs text-gray-500 max-w-sm truncate">
+                                            {{ explanation.narrative|truncate(50) }}
+                                        </div>
+                                        <svg class="dimension-icon w-4 h-4 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="dimension-{{ loop.index0 }}" class="dimension-content hidden border-t border-gray-100">
+                                <div class="p-3 space-y-3">
+                                    <div class="text-gray-700 text-sm leading-relaxed">
+                                        {{ explanation.narrative }}
+                                    </div>
+                                    
+                                    {% if explanation.evidence_excerpts and explanation.evidence_excerpts|length > 0 %}
+                                    <div class="bg-blue-50 rounded p-2">
+                                        <h6 class="text-xs font-medium text-blue-600 mb-1">Evidence:</h6>
+                                        {% for excerpt in explanation.evidence_excerpts %}
+                                        <div class="text-xs italic text-blue-800 mb-1">"{{ excerpt }}"</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if explanation.improvement_suggestions and explanation.improvement_suggestions|length > 0 %}
+                                    <div class="bg-green-50 rounded p-2">
+                                        <h6 class="text-xs font-medium text-green-600 mb-1">Suggestions:</h6>
+                                        <ul class="text-xs text-green-800 space-y-1">
+                                            {% for suggestion in explanation.improvement_suggestions %}
+                                            <li>• {{ suggestion }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Factuality Analysis - Progressive Disclosure -->
+    <div class="mb-6">
+        <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="card-header p-4 cursor-pointer" data-target="factuality-analysis">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <h3 class="text-lg font-semibold">🔍 Factuality Analysis</h3>
+                        <div class="flex space-x-3 text-sm">
+                            <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                Score: {{ result.factuality_analysis.consistency_score }}
+                            </span>
+                            <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded">
+                                {{ result.factuality_analysis.claims_checked }} Claims
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="summary-preview text-sm text-gray-600">
+                            Click to view claim-level analysis
+                        </div>
+                        <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="factuality-analysis" class="card-content hidden border-t border-gray-100">
+                <div class="p-4 space-y-4">
+                    {% if result.factuality_analysis.consistency_narrative %}
+                    <div class="bg-purple-50 rounded-lg p-3">
+                        <h5 class="font-medium text-purple-700 mb-2">Overall Consistency Assessment</h5>
+                        <p class="text-purple-800 text-sm">{{ result.factuality_analysis.consistency_narrative }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if result.factuality_analysis.claims and result.factuality_analysis.claims|length > 0 %}
+                    <div>
+                        <h5 class="font-medium text-orange-600 mb-3">Individual Claims Analysis</h5>
+                        <div class="space-y-2">
+                            {% for claim in result.factuality_analysis.claims %}
+                            <div class="bg-orange-50 rounded-lg p-3 border-l-4 border-orange-400">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="font-medium text-orange-800 text-sm">{{ claim.claim }}</span>
+                                    <span class="px-2 py-1 rounded text-xs font-semibold
+                                        {% if claim.support == 'Supported' %}bg-green-100 text-green-800
+                                        {% elif claim.support == 'Not Supported' %}bg-red-100 text-red-800
+                                        {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                        {{ claim.support }}
+                                    </span>
+                                </div>
+                                <p class="text-orange-700 text-xs">{{ claim.explanation }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Heuristic Analysis - Progressive Disclosure -->
+    <div class="mb-6">
+        <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="card-header p-4 cursor-pointer" data-target="heuristic-analysis">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <h3 class="text-lg font-semibold">📊 Document Quality Metrics</h3>
+                        <span class="text-lg font-bold bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                            {{ result.heuristic_analysis.composite_score }}/5.0
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="summary-preview text-sm text-gray-600">
+                            Length • Structure • Redundancy analysis
+                        </div>
+                        <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="heuristic-analysis" class="card-content hidden border-t border-gray-100">
+                <div class="p-4">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <h5 class="font-medium mb-3">Quality Scores</h5>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center">
+                                        <span>Length:</span>
+                                        <div class="flex items-center space-x-2">
+                                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-blue-600 h-2 rounded-full score-bar-{{ (result.heuristic_analysis.length_score * 20)|int }}"></div>
+                                            </div>
+                                            <span class="font-semibold text-sm">{{ result.heuristic_analysis.length_score }}/5</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>Structure:</span>
+                                        <div class="flex items-center space-x-2">
+                                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-blue-600 h-2 rounded-full score-bar-{{ (result.heuristic_analysis.structure_score * 20)|int }}"></div>
+                                            </div>
+                                            <span class="font-semibold text-sm">{{ result.heuristic_analysis.structure_score }}/5</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>Redundancy:</span>
+                                        <div class="flex items-center space-x-2">
+                                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-blue-600 h-2 rounded-full score-bar-{{ (result.heuristic_analysis.redundancy_score * 20)|int }}"></div>
+                                            </div>
+                                            <span class="font-semibold text-sm">{{ result.heuristic_analysis.redundancy_score }}/5</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <h5 class="font-medium mb-3">Document Stats</h5>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>Words:</span>
+                                        <span class="font-semibold">{{ result.heuristic_analysis.word_count }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Characters:</span>
+                                        <span class="font-semibold">{{ result.heuristic_analysis.character_count }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Reasoning Process (if available) -->
+    {% if (result.reasoning_analysis_log and result.reasoning_analysis_log|length > 0) or (result.chain_of_thought and result.chain_of_thought|length > 0) %}
+    <div class="mb-6">
+        <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="card-header p-4 cursor-pointer" data-target="reasoning-analysis">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <h3 class="text-lg font-semibold text-indigo-700">🧠 AI Reasoning Process Analysis Log</h3>
+                        <span class="text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded">
+                            Comprehensive Analysis
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="summary-preview text-sm text-gray-600">
+                            View detailed step-by-step AI decision-making process
+                        </div>
+                        <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="reasoning-analysis" class="card-content hidden border-t border-gray-100">
+                <div class="p-4 space-y-4">
+                    {% if result.reasoning_analysis_log and result.reasoning_analysis_log|length > 0 %}
+                    <!-- Primary Reasoning Analysis Log -->
+                    <div class="bg-indigo-50 rounded-lg p-4 border-l-4 border-indigo-400">
+                        <div class="flex justify-between items-start mb-3">
+                            <h5 class="font-semibold text-indigo-800">🧠 AI Reasoning Process Analysis Log</h5>
+                            <div class="flex space-x-2">
+                                <button onclick="copyReasoningText()" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                                    📋 Copy
+                                </button>
+                                <button onclick="downloadReasoning()" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                                    💾 Download
+                                </button>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded border p-4 max-h-80 overflow-y-auto">
+                            <pre id="reasoning-content" class="whitespace-pre-wrap text-sm font-mono leading-relaxed text-gray-800">{{ result.reasoning_analysis_log }}</pre>
+                        </div>
+                        <div class="mt-2 text-xs text-indigo-600">
+                            <p><strong>Note:</strong> This comprehensive analysis log shows the internal reasoning process of the O3 AI model during assessment. 
+                            It includes detailed component analysis, scoring methodology, claim-level factuality assessment, and the mathematical integration process that led to the final hybrid score and grade.</p>
+                        </div>
+                    </div>
+                    {% elif result.chain_of_thought and result.chain_of_thought|length > 0 %}
+                    <!-- Fallback to Chain of Thought -->
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <h5 class="font-medium text-gray-700 mb-3">📝 Analysis Log</h5>
+                        <div class="bg-white rounded border p-4 max-h-64 overflow-y-auto">
+                            <pre id="reasoning-content" class="whitespace-pre-wrap text-sm font-mono leading-relaxed text-gray-800">{{ result.chain_of_thought }}</pre>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-500">
+                            <p><strong>Note:</strong> This shows the internal analysis workflow and component summaries.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="flex justify-end space-x-3 mt-6 pt-4 border-t">
+        <button onclick="window.print()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg transition-colors">
+            📄 Print Report
+        </button>
+        <button onclick="location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+            🔄 New Analysis
+        </button>
+    </div>
+</div>
+
+<!-- Enhanced CSS for results -->
+<style>
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.score-bar-0 { width: 0%; }
+.score-bar-20 { width: 20%; }
+.score-bar-40 { width: 40%; }
+.score-bar-60 { width: 60%; }
+.score-bar-80 { width: 80%; }
+.score-bar-100 { width: 100%; }
+
+.narrative-card, .dimension-card {
+    transition: all 0.2s ease-in-out;
+}
+
+.narrative-card:hover, .dimension-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-header:hover, .dimension-header:hover {
+    background-color: #f8fafc;
+}
+
+.expand-icon, .dimension-icon {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card-content, .dimension-content {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 1000px;
+    }
+}
+</style>
+
+<!-- Enhanced JavaScript for results interactions -->
+<script>
+// Initialize immediately when script loads (works with HTMX)
+(function initializeResults() {
+    // Wait for DOM elements to be available
+    setTimeout(function() {
+        // Main narrative cards
+        const narrativeCards = document.querySelectorAll('.narrative-card');
+        narrativeCards.forEach(initializeCard);
+        
+        // Dimension cards (nested)
+        const dimensionCards = document.querySelectorAll('.dimension-card');
+        dimensionCards.forEach(initializeDimensionCard);
+        
+        // Smooth scroll to results
+        const resultsContainer = document.getElementById('results-container');
+        if (resultsContainer) {
+            resultsContainer.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }
+    }, 100);
+    
+    function initializeCard(card) {
+        const header = card.querySelector('.card-header');
+        const content = card.querySelector('.card-content');
+        const expandIcon = card.querySelector('.expand-icon');
+        
+        if (header && content && expandIcon) {
+            // Remove any existing listeners to prevent duplicates
+            header.removeEventListener('click', header._clickHandler);
+            
+            header._clickHandler = function() {
+                toggleCard(content, expandIcon, header);
+            };
+            
+            header.addEventListener('click', header._clickHandler);
+            setupAccessibility(header);
+        }
+    }
+    
+    function initializeDimensionCard(card) {
+        const header = card.querySelector('.dimension-header');
+        const content = card.querySelector('.dimension-content');
+        const expandIcon = card.querySelector('.dimension-icon');
+        
+        if (header && content && expandIcon) {
+            // Remove any existing listeners to prevent duplicates
+            header.removeEventListener('click', header._clickHandler);
+            
+            header._clickHandler = function(e) {
+                e.stopPropagation();
+                toggleCard(content, expandIcon, header);
+            };
+            
+            header.addEventListener('click', header._clickHandler);
+            setupAccessibility(header);
+        }
+    }
+    
+    function toggleCard(content, expandIcon, header) {
+        const isExpanded = !content.classList.contains('hidden');
+        content.classList.toggle('hidden');
+        expandIcon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+        header.setAttribute('aria-expanded', !isExpanded);
+    }
+    
+    function setupAccessibility(header) {
+        header.setAttribute('role', 'button');
+        header.setAttribute('aria-expanded', 'false');
+        header.setAttribute('tabindex', '0');
+        
+        // Remove any existing keydown listener
+        header.removeEventListener('keydown', header._keydownHandler);
+        
+        header._keydownHandler = function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                header.click();
+            }
+        };
+        
+        header.addEventListener('keydown', header._keydownHandler);
+    }
+    
+    // Reasoning summary utility functions
+    window.copyReasoningText = function() {
+        const reasoningContent = document.getElementById('reasoning-content');
+        if (reasoningContent) {
+            navigator.clipboard.writeText(reasoningContent.textContent)
+                .then(() => {
+                    // Visual feedback
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = '✅ Copied!';
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+        }
+    };
+    
+    window.downloadReasoning = function() {
+        const reasoningContent = document.getElementById('reasoning-content');
+        if (reasoningContent) {
+            const content = reasoningContent.textContent;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `clinical-note-reasoning-${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+    };
+})();
+</script> 
