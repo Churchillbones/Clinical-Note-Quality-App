@@ -61,3 +61,44 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+
+# --- Added ignore patterns (2025-08 hardening) ---
+# Test & tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.hypothesis/
+.benchmarks/
+
+# Coverage directory variants
+coverage/
+*.lcov
+
+# Editor / tooling extras
+.history/
+.ropeproject/
+
+# OS artifacts (Windows/macOS)
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Merge / patch leftovers
+*.orig
+*.rej
+*.diff
+*.patch
+*.PATCH
+
+# OneDrive / sync conflict artifacts
+* (Conflicted copy*).*
+* - Copy.*
+
+# Profiling / performance artifacts
+*.prof
+*.pstats
+
+# Optional ML / checkpoints
+*.ckpt
