@@ -27,6 +27,10 @@ class AsyncLLMClientProtocol(Protocol):
         """Return content string from async chat completion."""
         ...
 
+    async def get_embeddings(self, *, texts: list[str]) -> list[list[float]]:
+        """Return a list of embeddings for a list of texts."""
+        ...
+
     async def close(self) -> None:
         """Clean up async resources."""
         ...
@@ -50,6 +54,34 @@ class AsyncAzureLLMClient(AsyncLLMClientProtocol):
             timeout=self._TIMEOUT,
             max_retries=0,  # We handle retries manually
         )
+        self._embedding_deployment = settings.AZURE_EMBEDDING_DEPLOYMENT
+
+    async def get_embeddings(self, *, texts: list[str]) -> list[list[float]]:
+        """Return a list of embeddings for a list of texts with exponential backoff."""
+        payload = {
+            "model": self._embedding_deployment,
+            "input": texts,
+        }
+
+        retry = 0
+        while True:
+            try:
+                response = await self._client.embeddings.create(**payload)
+                return [item.embedding for item in response.data]
+            except (RateLimitError, APIConnectionError) as exc:
+                if retry >= self._MAX_RETRIES:
+                    raise
+                delay = (self._BACKOFF_BASE**retry) + random.uniform(0, 0.3)
+                logger.warning(
+                    "AsyncAzureLLMClient transient error (%s); retrying in %.2fs",
+                    exc.__class__.__name__,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                retry += 1
+            except (APIStatusError, APIError) as exc:
+                logger.error("AsyncAzureLLMClient permanent API error: %s", exc, exc_info=True)
+                raise
 
     async def chat_complete(self, *, messages: List[ChatCompletionMessageParam], model: str, **kwargs: Any) -> str:
         """Return content string from async chat completion with exponential backoff."""
