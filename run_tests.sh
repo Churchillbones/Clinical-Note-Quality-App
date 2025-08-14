@@ -9,7 +9,7 @@ source venv/bin/activate
 
 # Run tests with coverage
 echo "Running pytest with coverage..."
-pytest tests/ --cov=grading --cov-report=term-missing --cov-report=html -v
+PYTHONPATH=. pytest tests/ --cov=clinical_note_quality --cov-report=term-missing --cov-report=html -v
 
 echo ""
 echo "Test results:"

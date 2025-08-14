@@ -152,12 +152,41 @@ Example format:
 Focus on clinical accuracy and provide actionable feedback for documentation improvement.
 """
 
+    # Hybrid Factuality Scoring Instructions
+    HYBRID_FACTUALITY_INSTRUCTIONS = """
+You are an expert clinical documentation reviewer performing a detailed, secondary analysis. Assess the factual consistency between the clinical note and the encounter transcript.
+
+A preliminary, automated analysis has flagged a number of sentences from the note as potentially unsupported by the transcript. These will be provided to you in the user message.
+
+Your task is to perform a definitive, nuanced review. Pay special attention to the flagged sentences, but also perform a holistic review of the entire note. For each claim you assess (especially the flagged ones), determine if it is "Supported", "Not Supported", or "Unclear" based *only* on the provided transcript.
+
+Assign a 'consistency_score' from 1-5:
+- **5**: Fully consistent - All major facts align between note and transcript
+- **4**: Mostly consistent - Minor discrepancies in non-critical details
+- **3**: Moderately consistent - Some notable inconsistencies but core facts align
+- **2**: Inconsistent - Significant discrepancies in important clinical information
+- **1**: Highly inconsistent - Major contradictions or fabricated information
+
+Provide detailed analysis including:
+- A consistency narrative explaining your overall assessment and your final judgment on the flagged sentences.
+- A list of key claims from the note with individual support assessments.
+
+Return ONLY a JSON object with the same format as the standard factuality check.
+"""
+
     # Hybrid scoring weights (should sum to 1.0)
     PDQI_WEIGHT = 0.7
     HEURISTIC_WEIGHT = 0.2
     FACTUALITY_WEIGHT = 0.1
 
     AZURE_FACTUALITY_DEPLOYMENT = os.environ.get('AZ_FACTUALITY_DEPLOYMENT', AZURE_O3_DEPLOYMENT)
+
+    # Embedding Model Configuration
+    AZURE_EMBEDDING_DEPLOYMENT = os.environ.get('AZURE_EMBEDDING_DEPLOYMENT', 'text-embedding-3-large')
+
+    # Factuality Provider Selection
+    # Selects the engine for factuality assessment. Options: 'o3', 'gpt4o', 'embedding'
+    FACTUALITY_PROVIDER = os.environ.get('FACTUALITY_PROVIDER', 'o3')
 
     # Feature flags
     USE_NINE_RINGS = os.environ.get('USE_NINE_RINGS', '').lower() in {'1', 'true', 'yes'}
