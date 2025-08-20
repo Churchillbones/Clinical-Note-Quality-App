@@ -1,0 +1,21 @@
+CHANGELOG.md
+Claude.md
+"Clinical Note Quality Grader \342\200\223 Project Overview.md"
+NARRATIVE_EXPLANATIONS_PLAN.md
+PHASE1_DETAILED_PLAN.md
+PHASE2_DETAILED_PLAN.md
+README.md
+REFACTOR_PLAN.md
+RELEASE_NOTES_v2.0.0.md
+docs/README.md
+pdr.md
+sample_note.md
+tests/__init__.py
+tests/conftest.py
+tests/test_app_routes.py
+tests/test_async_grading_service.py
+tests/test_factuality.py
+tests/test_heuristics.py
+tests/test_hybrid.py
+tests/test_o3_judge.py
+tests/test_observability.py

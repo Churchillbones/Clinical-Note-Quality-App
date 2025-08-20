@@ -16,15 +16,16 @@
                 {{ result.overall_grade }}
             </div>
             <div class="text-sm text-gray-500">Grade</div>
-            <div class="text-lg font-semibold">{{ "%.2f"|format(result.hybrid_score) }}/5.0</div>
+            <div class="text-lg font-semibold">{{ "%.0f"|format(result.pdqi_total) }}/45</div>
         </div>
     </div>
 
     <!-- Quick Stats -->
     <div class="grid grid-cols-3 gap-6 mb-8">
         <div class="text-center p-4 bg-blue-50 rounded-lg">
-            <div class="text-2xl font-bold text-blue-700">{{ "%.1f"|format(result.pdqi_average) }}</div>
-            <div class="text-sm font-medium text-blue-600">PDQI Average</div>
+            <div class="text-2xl font-bold text-blue-700">{{ "%.0f"|format(result.pdqi_total) }}</div>
+            <div class="text-sm font-medium text-blue-600">PDQI Total Score</div>
+            <div class="text-xs text-blue-500">({{ "%.1f"|format(result.pdqi_total/9) }}/5 avg)</div>
         </div>
         <div class="text-center p-4 bg-green-50 rounded-lg">
             <div class="text-2xl font-bold text-green-700">{{ "%.1f"|format(result.heuristic_analysis.composite_score) }}</div>
@@ -90,7 +91,7 @@
                     <div class="flex items-center space-x-4">
                         <h3 class="text-lg font-semibold">📋 PDQI-9 Clinical Documentation</h3>
                         <span class="text-lg font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-                            Average: {{ result.pdqi_average }}/5.0
+                            Total: {{ "%.0f"|format(result.pdqi_total) }}/45
                         </span>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -253,10 +254,157 @@
                         </div>
                     </div>
                     {% endif %}
+
+                    <!-- O3-Detected Hallucinations (NEW) -->
+                    {% if result.factuality_analysis.hallucinations and result.factuality_analysis.hallucinations|length > 0 %}
+                    <div>
+                        <h5 class="font-medium text-yellow-600 mb-3">⚠️ Unsubstantiated Claims Detected</h5>
+                        <div class="space-y-3">
+                            {% for hallucination in result.factuality_analysis.hallucinations %}
+                            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-sm font-medium text-yellow-800">Unsubstantiated Claim</span>
+                                        <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs">
+                                            {{ hallucination.medical_category|replace('_', ' ')|title }}
+                                        </span>
+                                        <span class="px-2 py-1 rounded text-xs font-medium
+                                            {% if hallucination.risk_level == 'high' %}bg-red-100 text-red-700
+                                            {% elif hallucination.risk_level == 'medium' %}bg-yellow-100 text-yellow-700
+                                            {% else %}bg-green-100 text-green-700{% endif %}">
+                                            {{ hallucination.risk_level|title }} Risk
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center space-x-1">
+                                        <span class="text-xs text-yellow-600">Confidence:</span>
+                                        <span class="text-sm font-semibold text-yellow-800">{{ (hallucination.confidence * 100)|round|int }}%</span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="text-sm font-medium text-yellow-800 mb-1">Claim:</div>
+                                    <div class="text-sm text-yellow-700 bg-yellow-100 rounded p-2">
+                                        "{{ hallucination.claim }}"
+                                    </div>
+                                </div>
+                                {% if hallucination.recommendation %}
+                                <div class="text-xs text-yellow-600 italic">
+                                    <strong>Recommendation:</strong> {{ hallucination.recommendation }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
+                            <p class="text-xs text-blue-800">
+                                <strong>Note:</strong> These unsubstantiated claims were detected by O3-mini during factuality analysis. 
+                                They represent statements that appear factual but lack supporting evidence in the encounter transcript.
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Hallucination Detection - Progressive Disclosure -->
+    {% if result.discrepancy_analysis and result.discrepancy_analysis.hallucinations and result.discrepancy_analysis.hallucinations.count > 0 %}
+    <div class="mb-6">
+        <div class="narrative-card bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="card-header p-4 cursor-pointer" data-target="hallucination-analysis">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <h3 class="text-lg font-semibold text-yellow-700">⚠️ Hallucination Detection</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                                {{ result.discrepancy_analysis.hallucinations.count }} Unsubstantiated Claims
+                            </span>
+                            {% if result.discrepancy_analysis.hallucinations.results %}
+                            {% set high_risk_hallucinations = result.discrepancy_analysis.hallucinations.results | selectattr('risk_level', 'equalto', 'high') | list %}
+                            {% if high_risk_hallucinations|length > 0 %}
+                            <span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+                                {{ high_risk_hallucinations|length }} High Risk
+                            </span>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="summary-preview text-sm text-gray-600">
+                            AI-powered claim verification analysis
+                        </div>
+                        <svg class="expand-icon w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="hallucination-analysis" class="card-content hidden border-t border-gray-100">
+                <div class="p-4">
+                    <div class="mb-4">
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg mb-4">
+                            <p class="text-sm text-yellow-800">
+                                <strong>Hallucination Detection:</strong> This analysis identifies claims in the clinical note that cannot be substantiated by the provided transcript or evidence. 
+                                These may represent potential documentation errors, unsupported clinical assertions, or information that requires verification.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Hallucinations List -->
+                    <div class="space-y-4">
+                        {% for hallucination in result.discrepancy_analysis.hallucinations.results %}
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm font-medium text-yellow-800">Unsubstantiated Claim</span>
+                                    <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs">
+                                        {{ hallucination.medical_category|replace('_', ' ')|title }}
+                                    </span>
+                                    <span class="px-2 py-1 rounded text-xs font-medium
+                                        {% if hallucination.risk_level == 'high' %}bg-red-100 text-red-700
+                                        {% elif hallucination.risk_level == 'medium' %}bg-yellow-100 text-yellow-700
+                                        {% else %}bg-green-100 text-green-700{% endif %}">
+                                        {{ hallucination.risk_level|title }} Risk
+                                    </span>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <span class="text-xs text-yellow-600">Confidence:</span>
+                                    <span class="text-sm font-semibold text-yellow-800">{{ (hallucination.confidence * 100)|round|int }}%</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-sm font-medium text-yellow-800 mb-1">Claim:</div>
+                                <div class="text-sm text-yellow-700 bg-yellow-100 rounded p-2">
+                                    "{{ hallucination.claim }}"
+                                </div>
+                            </div>
+                            {% if hallucination.recommendation %}
+                            <div class="mb-2">
+                                <div class="text-sm font-medium text-yellow-800 mb-1">Recommendation:</div>
+                                <div class="text-xs text-yellow-600 italic">
+                                    {{ hallucination.recommendation }}
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if hallucination.context_similarity is defined %}
+                            <div class="text-xs text-yellow-600 mt-2">
+                                Context similarity: {{ (hallucination.context_similarity * 100)|round|int }}%
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Performance Info -->
+                    <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                        Hallucination analysis completed in {{ result.discrepancy_analysis.hallucinations.processing_time_ms }}ms using embedding-based verification
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Heuristic Analysis - Progressive Disclosure -->
     <div class="mb-6">
@@ -313,6 +461,19 @@
                                             </div>
                                             <span class="font-semibold text-sm">{{ result.heuristic_analysis.redundancy_score }}/5</span>
                                         </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Quality Score Explanations -->
+                                <div class="mt-4 pt-4 border-t border-gray-200 space-y-3 text-sm text-gray-600">
+                                    <div>
+                                        <strong class="text-gray-700">Length:</strong> Evaluates note appropriateness based on character count. Optimal range is 4,600-5,000 characters, reflecting current EHR standards for comprehensive yet concise clinical documentation.
+                                    </div>
+                                    <div>
+                                        <strong class="text-gray-700">Structure:</strong> Assesses logical organization, section headers, and use of lists or bullet points. Well-structured notes improve readability and clinical utility.
+                                    </div>
+                                    <div>
+                                        <strong class="text-gray-700">Redundancy:</strong> Identifies repeated phrases and unnecessary duplication. Lower redundancy indicates more efficient and focused documentation.
                                     </div>
                                 </div>
                             </div>

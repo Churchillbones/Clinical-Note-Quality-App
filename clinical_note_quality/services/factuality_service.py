@@ -34,6 +34,7 @@ class O3FactualityService(FactualityService):
         claims_checked = raw.get("claims_checked", 0)
         summary = raw.get("summary", "")
         claims = raw.get("claims", [])
+        hallucinations = raw.get("hallucinations", [])  # NEW: Extract O3-detected hallucinations
         consistency_narrative = raw.get("consistency_narrative", "")
         claims_narratives = raw.get("claims_narratives", [])
         
@@ -43,6 +44,7 @@ class O3FactualityService(FactualityService):
             claims_checked=int(claims_checked) if isinstance(claims_checked, (int, float)) else 0,
             summary=str(summary) if summary is not None else "",
             claims=claims if isinstance(claims, list) else [],
+            hallucinations=hallucinations if isinstance(hallucinations, list) else [],  # NEW: Pass through hallucinations
             consistency_narrative=str(consistency_narrative) if consistency_narrative else "",
             claims_narratives=claims_narratives if isinstance(claims_narratives, list) else [],
         )

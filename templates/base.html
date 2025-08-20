@@ -56,6 +56,39 @@
         .progress-bar {
             transition: width 0.3s ease;
         }
+        
+        /* Precision selection fixes */
+        .precision-option {
+            cursor: pointer !important;
+            user-select: none;
+        }
+        
+        .precision-card {
+            transition: all 0.2s ease;
+            pointer-events: auto;
+        }
+        
+        .precision-option:focus {
+            outline: 2px solid #4f46e5;
+            outline-offset: 2px;
+        }
+        
+        .precision-option:hover .precision-card {
+            border-color: #6366f1;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Hide actual radio buttons but keep them functional */
+        .precision-option input[type="radio"] {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0,0,0,0) !important;
+            border: 0 !important;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-clinical-50 to-gray-100 min-h-screen">

@@ -31,6 +31,50 @@ class O3Judge:
             api_version=Config.AZURE_O3_API_VERSION  # Use O3 API version
         )
 
+    def _parse_json_lenient(self, raw: str) -> Dict[str, Any]:
+        """Attempt to parse possibly-truncated JSON by trimming and fixing common issues.
+
+        Strategy:
+        - First try strict json.loads
+        - Iteratively trim to earlier closing braces and try to parse
+        - If a long block like dimension_explanations is truncated, drop it and close the object
+        """
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
+
+        # Try progressively trimming to the last closing brace
+        end = raw.rfind('}')
+        attempts = 0
+        while end != -1 and attempts < 25:
+            candidate = raw[:end + 1]
+            try:
+                return json.loads(candidate)
+            except Exception:
+                end = raw.rfind('}', 0, end)
+                attempts += 1
+
+        # Try dropping a truncated dimension_explanations block if present
+        key = '"dimension_explanations"'
+        kidx = raw.find(key)
+        if kidx != -1:
+            # Cut everything from just before the key and close the JSON object
+            comma_idx = raw.rfind(',', 0, kidx)
+            cut_idx = comma_idx if comma_idx != -1 else kidx
+            candidate = raw[:cut_idx].rstrip()
+            if candidate.endswith(','):
+                candidate = candidate[:-1]
+            # Ensure it ends with a closing brace
+            if not candidate.endswith('}'):
+                candidate = candidate + "\n}"
+            try:
+                return json.loads(candidate)
+            except Exception:
+                pass
+
+        raise json.JSONDecodeError("Could not leniently parse JSON", raw, 0)
+
     def _try_enable_reasoning(self, kwargs: Dict[str, Any]) -> bool:
         """Try to enable reasoning parameter if supported by the model."""
         # Don't add reasoning parameter as it's not supported in current API
@@ -91,6 +135,11 @@ class O3Judge:
 
     def score_pdqi9(self, clinical_note: str, model_precision: str = "medium") -> Dict[str, Any]:
         """Score clinical note using PDQI-9 dimensions with O3 model."""
+        # Check if responses API is disabled
+        if hasattr(Config, 'DISABLE_RESPONSES_API') and Config.DISABLE_RESPONSES_API:
+            logger.info("Responses API disabled, using chat.completions directly")
+            return self._score_with_chat_completions(clinical_note, model_precision)
+            
         try:
             # Try responses API first (newer, more advanced)
             return self._score_with_responses_api(clinical_note, model_precision)
@@ -104,17 +153,14 @@ class O3Judge:
             # Import responses API
             from openai import AzureOpenAI
             
-            # Select deployment based on model_precision
-            if model_precision == "high":
-                model_name = Config.AZURE_O3_HIGH_DEPLOYMENT
-            elif model_precision == "low":
-                model_name = Config.AZURE_O3_LOW_DEPLOYMENT
-            else:
-                model_name = Config.AZURE_O3_DEPLOYMENT
+            # Use single deployment but vary parameters based on precision
+            model_name = Config.AZURE_O3_DEPLOYMENT
+            logger.info(f"Using O3 responses API with precision: {model_precision}, deployment: {model_name}")
             
-            # Prepare messages
+            # Prepare messages with precision-based instructions
+            system_content = self._get_precision_instructions(model_precision)
             messages = [
-                {"role": "system", "content": Config.PDQI_INSTRUCTIONS},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": f"Clinical Note:\n\n{clinical_note}"}
             ]
             
@@ -223,27 +269,24 @@ class O3Judge:
             ]
             
             # Select deployment based on model_precision
-            if model_precision == "high":
-                model_name = Config.AZURE_O3_HIGH_DEPLOYMENT
-            elif model_precision == "low":
-                model_name = Config.AZURE_O3_LOW_DEPLOYMENT
-            else:
-                model_name = Config.AZURE_O3_DEPLOYMENT
-                
-            kwargs = {"model": model_name, "messages": messages,
-                      "response_format": {"type": "json_object"}}
+            model_name = Config.AZURE_O3_DEPLOYMENT
+            logger.info(f"Using O3 chat completions with precision: {model_precision}, deployment: {model_name}")
             
-            # Add max_completion_tokens parameter only if it's defined
-            if hasattr(Config, 'MAX_COMPLETION_TOKENS') and Config.MAX_COMPLETION_TOKENS:
-                kwargs["max_completion_tokens"] = Config.MAX_COMPLETION_TOKENS
+            # Prepare messages with precision-based instructions
+            system_content = self._get_precision_instructions(model_precision)
+            messages: List[ChatCompletionMessageParam] = [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": f"Clinical Note:\n\n{clinical_note}"}
+            ]
+            
+            # Build kwargs with precision-based parameters
+            kwargs = self._build_precision_kwargs(model_name, messages, model_precision)
             
             # Try to enable reasoning parameter for chain of thought summaries
             reasoning_enabled = self._try_enable_reasoning(kwargs)
             
             # Make request with retry logic
             content, reasoning_summary = self._make_pdqi_request(kwargs, reasoning_enabled)
-            
-            # Defensive programming: Ensure content is not None or empty
             if not content:
                 logger.error("Empty response content after retries")
                 raise OpenAIResponseError("Empty response from Azure OpenAI service for PDQI-9 check")
@@ -252,17 +295,11 @@ class O3Judge:
             try:
                 scores = json.loads(content)
             except json.JSONDecodeError as e:
-                # Attempt to repair truncated JSON by trimming to last closing brace
-                last_brace = content.rfind('}')
-                if last_brace != -1:
-                    repaired = content[:last_brace+1]
-                    try:
-                        scores = json.loads(repaired)
-                        logger.warning(f"Successfully repaired truncated JSON from O3 response. Original: {content} | Repaired: {repaired}")
-                    except Exception as e2:
-                        logger.error(f"Failed to repair O3 JSON response: {content}. Error: {e2}", exc_info=True)
-                        raise OpenAIResponseError(f"Invalid or malformed response from Azure OpenAI service: {e}\nRaw content: {content}")
-                else:
+                # Attempt lenient parsing/repair
+                try:
+                    scores = self._parse_json_lenient(content)
+                    logger.warning("Leniently repaired JSON from O3 response due to error: %s", e)
+                except Exception:
                     # As a last resort, extract integer scores via regex even if summary is truncated.
                     import re
                     pattern = r'"(up_to_date|accurate|thorough|useful|organized|concise|consistent|complete|actionable)"\s*:\s*([1-5])'
@@ -441,6 +478,48 @@ class O3Judge:
         except Exception as e:
             logger.error(f"Unexpected error in PDQI scoring: {e}", exc_info=True)
             raise OpenAIServiceError(f"Unexpected error in PDQI scoring: {e}")
+
+    def _get_precision_instructions(self, model_precision: str) -> str:
+        """Get system instructions modified based on precision level."""
+        base_instructions = Config.PDQI_INSTRUCTIONS
+        
+        if model_precision == "low":
+            # Fast mode - lighter instructions for quicker processing
+            return (
+                base_instructions
+                + "\n\nMODE: FAST - Provide concise evaluations with essential rationale only. Focus on clear, decisive scoring."
+                + "\nOUTPUT FORMAT NOTE (FAST): Return only the nine PDQI fields, a short 'summary', and an optional 'scoring_rationale'. Omit 'dimension_explanations' to keep the response compact."
+            )
+        elif model_precision == "high":
+            # Thorough mode - enhanced instructions for detailed analysis
+            return base_instructions + "\n\nMODE: THOROUGH - Provide comprehensive evaluations with detailed rationale, extensive evidence excerpts, and nuanced analysis. Take extra time to consider edge cases and provide thorough improvement suggestions."
+        else:
+            # Balanced mode - standard instructions
+            return base_instructions + "\n\nMODE: BALANCED - Provide well-reasoned evaluations with good balance of detail and efficiency."
+    
+    def _build_precision_kwargs(self, model_name: str, messages: list, model_precision: str) -> Dict[str, Any]:
+        """Build API kwargs with precision-specific parameters."""
+        kwargs = {
+            "model": model_name, 
+            "messages": messages,
+            "response_format": {"type": "json_object"}
+        }
+        
+        # Add precision-specific parameters
+        if model_precision == "low":
+            # Fast mode - optimize for speed
+            if hasattr(Config, 'MAX_COMPLETION_TOKENS'):
+                kwargs["max_completion_tokens"] = min(Config.MAX_COMPLETION_TOKENS, 3000)
+        elif model_precision == "high":
+            # Thorough Ultra mode - optimize for maximum quality with 12K tokens
+            kwargs["max_completion_tokens"] = 12000
+        else:
+            # Balanced mode - standard parameters
+            if hasattr(Config, 'MAX_COMPLETION_TOKENS') and Config.MAX_COMPLETION_TOKENS:
+                kwargs["max_completion_tokens"] = Config.MAX_COMPLETION_TOKENS
+        
+        logger.info(f"Built kwargs for precision {model_precision}: max_tokens={kwargs.get('max_completion_tokens', 'default')}")
+        return kwargs
 
 def score_with_o3(clinical_note: str, model_precision: str = "medium") -> Dict[str, Any]:
     """Convenience function for scoring with O3."""

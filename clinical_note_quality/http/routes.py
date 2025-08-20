@@ -45,6 +45,20 @@ def grade_via_form():
         note = request.form["clinical_note"]
         transcript = request.form.get("encounter_transcript", "")
         precision = request.form.get("model_precision", "medium")
+        
+        # Debug logging for precision selection
+        logger.info(f"Form submission - precision selected: '{precision}' (type: {type(precision)})")
+        logger.info(f"Available form fields: {list(request.form.keys())}")
+        
+        # Enforce character limits
+        if len(note) > 20000:
+            error_msg = f"Clinical note exceeds the maximum limit of 20,000 characters. Your note has {len(note):,} characters. Please reduce the content by {len(note) - 20000:,} characters."
+            return render_template("index.html", error=error_msg)
+        
+        if len(transcript) > 40000:
+            error_msg = f"Encounter transcript exceeds the maximum limit of 40,000 characters. Your transcript has {len(transcript):,} characters. Please reduce the content by {len(transcript) - 40000:,} characters."
+            return render_template("index.html", error=error_msg)
+            
         logger.info("/grade request received (precision=%s)", precision)
         result = _grade_note(note, transcript, precision)
 
@@ -106,10 +120,89 @@ def grade_via_api():
         note = data["clinical_note"]
         transcript = data.get("encounter_transcript")  # None if missing to match legacy tests
         precision = data.get("model_precision", "medium")
+        
+        # Debug logging for precision selection via API
+        logger.info(f"API submission - precision selected: '{precision}' (type: {type(precision)})")
+        logger.info(f"Available data fields: {list(data.keys())}")
+        
+        # Enforce character limits
+        if len(note) > 20000:
+            error_msg = f"Clinical note exceeds the maximum limit of 20,000 characters. Your note has {len(note):,} characters. Please reduce the content by {len(note) - 20000:,} characters."
+            if request.headers.get('HX-Request'):
+                error_html = f'''
+                <div class="bg-red-50 border-l-4 border-red-400 p-4 mt-8">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800">Character Limit Exceeded</h3>
+                            <p class="text-sm text-red-700 mt-1">{error_msg}</p>
+                        </div>
+                    </div>
+                </div>
+                '''
+                return error_html, 400
+            return jsonify({"error": error_msg}), 400
+            
+        if transcript and len(transcript) > 40000:
+            error_msg = f"Encounter transcript exceeds the maximum limit of 40,000 characters. Your transcript has {len(transcript):,} characters. Please reduce the content by {len(transcript) - 40000:,} characters."
+            if request.headers.get('HX-Request'):
+                error_html = f'''
+                <div class="bg-red-50 border-l-4 border-red-400 p-4 mt-8">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800">Character Limit Exceeded</h3>
+                            <p class="text-sm text-red-700 mt-1">{error_msg}</p>
+                        </div>
+                    </div>
+                </div>
+                '''
+                return error_html, 400
+            return jsonify({"error": error_msg}), 400
+            
         result = _grade_note(note, transcript, precision)
         
         # Check if this is an HTMX request (expects HTML fragment)
         if request.headers.get("HX-Request"):
+            # Ensure result is a dictionary with pdqi_total for template rendering
+            if not isinstance(result, dict):
+                result = result.as_dict() if hasattr(result, 'as_dict') else result
+            
+            # Debug logging to understand the data structure
+            logger.info(f"Template data structure - keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+            if isinstance(result, dict) and "pdqi_scores" in result:
+                logger.info(f"PDQI scores structure: {type(result['pdqi_scores'])} with keys: {list(result['pdqi_scores'].keys()) if isinstance(result['pdqi_scores'], dict) else 'Not a dict'}")
+            
+            # Ensure pdqi_total exists for template compatibility
+            if "pdqi_total" not in result and "pdqi_scores" in result:
+                logger.info("pdqi_total missing, attempting to calculate from pdqi_scores")
+                pdqi_scores = result["pdqi_scores"]
+                if isinstance(pdqi_scores, dict) and "scores" in pdqi_scores:
+                    # Extract from nested scores structure
+                    scores = pdqi_scores["scores"]
+                    numeric_scores = [float(v) for k, v in scores.items() 
+                                    if k not in ["summary", "rationale", "model_provenance"] 
+                                    and isinstance(v, (int, float))]
+                    result["pdqi_total"] = sum(numeric_scores) if numeric_scores else 0.0
+                    logger.info(f"Calculated pdqi_total from nested scores: {result['pdqi_total']}")
+                elif isinstance(pdqi_scores, dict):
+                    # Extract from flat structure
+                    numeric_scores = [float(v) for k, v in pdqi_scores.items() 
+                                    if k not in ["summary", "rationale", "model_provenance", "scores"] 
+                                    and isinstance(v, (int, float))]
+                    result["pdqi_total"] = sum(numeric_scores) if numeric_scores else 0.0
+                    logger.info(f"Calculated pdqi_total from flat structure: {result['pdqi_total']}")
+            else:
+                logger.info(f"pdqi_total already present: {result.get('pdqi_total', 'Still missing!')}")
+            
             return render_template("results_partial.html", result=result)
 
         return jsonify(result)
@@ -173,17 +266,30 @@ def _grade_note(note: str, transcript: str | None, precision: str) -> Dict[str, 
     result = _service.grade(note, transcript or "", precision)
     result_dict = result.as_dict()
     
-    # Ensure required fields for UI templates
-    if "pdqi_average" not in result_dict:
+    # Ensure required fields for UI templates - pdqi_total should be at top level
+    if "pdqi_total" not in result_dict:
         pdqi_scores = result_dict.get("pdqi_scores", {})
         numeric_scores = []
-        for key, value in pdqi_scores.items():
-            if key not in ["summary", "rationale", "model_provenance"]:
-                try:
-                    numeric_scores.append(float(value))
-                except (ValueError, TypeError):
-                    pass
-        result_dict["pdqi_average"] = sum(numeric_scores) / len(numeric_scores) if numeric_scores else 0.0
+        
+        # Check if scores are in a nested 'scores' dictionary (from PDQIScore.to_dict())
+        if isinstance(pdqi_scores, dict) and "scores" in pdqi_scores:
+            scores_dict = pdqi_scores["scores"]
+            for key, value in scores_dict.items():
+                if key not in ["summary", "rationale", "model_provenance"]:
+                    try:
+                        numeric_scores.append(float(value))
+                    except (ValueError, TypeError):
+                        pass
+        else:
+            # Fallback: check top-level pdqi_scores keys
+            for key, value in pdqi_scores.items():
+                if key not in ["summary", "rationale", "model_provenance", "scores"]:
+                    try:
+                        numeric_scores.append(float(value))
+                    except (ValueError, TypeError):
+                        pass
+        
+        result_dict["pdqi_total"] = sum(numeric_scores) if numeric_scores else 0.0
     
     return result_dict
 

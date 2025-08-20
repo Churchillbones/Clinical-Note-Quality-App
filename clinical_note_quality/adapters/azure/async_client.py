@@ -27,6 +27,10 @@ class AsyncLLMClientProtocol(Protocol):
         """Return content string from async chat completion."""
         ...
 
+    async def create_embeddings(self, texts: List[str], model: str) -> List[List[float]]:
+        """Create embeddings for the given texts."""
+        ...
+
     async def close(self) -> None:
         """Clean up async resources."""
         ...
@@ -49,6 +53,16 @@ class AsyncAzureLLMClient(AsyncLLMClientProtocol):
             api_version=settings.AZURE_OPENAI_API_VERSION,
             timeout=self._TIMEOUT,
             max_retries=0,  # We handle retries manually
+        )
+        
+        # Separate client for embeddings if different endpoint is configured
+        embedding_endpoint = settings.EMBEDDING_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
+        self._embedding_client = AsyncAzureOpenAI(
+            api_key=settings.AZURE_OPENAI_KEY,
+            azure_endpoint=embedding_endpoint,
+            api_version=settings.EMBEDDING_API_VERSION,
+            timeout=self._TIMEOUT,
+            max_retries=0,
         )
 
     async def chat_complete(self, *, messages: List[ChatCompletionMessageParam], model: str, **kwargs: Any) -> str:
@@ -82,9 +96,35 @@ class AsyncAzureLLMClient(AsyncLLMClientProtocol):
                 logger.error("AsyncAzureLLMClient permanent API error: %s", exc, exc_info=True)
                 raise
 
+    async def create_embeddings(self, texts: List[str], model: str) -> List[List[float]]:
+        """Create embeddings for the given texts with exponential backoff."""
+        retry = 0
+        while True:
+            try:
+                response = await self._embedding_client.embeddings.create(
+                    input=texts,
+                    model=model
+                )
+                return [embedding.embedding for embedding in response.data]
+            except (RateLimitError, APIConnectionError) as exc:
+                if retry >= self._MAX_RETRIES:
+                    raise
+                delay = (self._BACKOFF_BASE ** retry) + random.uniform(0, 0.3)
+                logger.warning(
+                    "AsyncAzureLLMClient embedding transient error (%s); retrying in %.2fs",
+                    exc.__class__.__name__,
+                    delay
+                )
+                await asyncio.sleep(delay)
+                retry += 1
+            except (APIStatusError, APIError) as exc:
+                logger.error("AsyncAzureLLMClient embedding permanent API error: %s", exc, exc_info=True)
+                raise
+
     async def close(self) -> None:
         """Clean up async client resources."""
         await self._client.close()
+        await self._embedding_client.close()
 
 
 # Sync wrapper for backwards compatibility

@@ -61,6 +61,17 @@ class Settings(BaseSettings):
         default=_LegacyConfig.AZURE_OPENAI_API_VERSION, validation_alias="AZURE_OPENAI_API_VERSION"
     )
 
+    # Embedding Configuration for Semantic Gap Detection
+    EMBEDDING_ENDPOINT: str | None = Field(
+        default=None, validation_alias="EMBEDDING_ENDPOINT"
+    )
+    EMBEDDING_DEPLOYMENT: str = Field(
+        default="text-embedding-3-large", validation_alias="EMBEDDING_DEPLOYMENT"
+    )
+    EMBEDDING_API_VERSION: str = Field(
+        default="2025-01-01-preview", validation_alias="EMBEDDING_API_VERSION"
+    )
+
     MAX_COMPLETION_TOKENS: int = Field(
         default=_LegacyConfig.MAX_COMPLETION_TOKENS, validation_alias="MAX_COMPLETION_TOKENS"
     )

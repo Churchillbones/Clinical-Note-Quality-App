@@ -5,7 +5,7 @@ from typing import Dict, Any
 class GradingViewModel:
     """Normalize grading result into numeric-friendly view model."""
     pdqi_scores: Dict[str, Any]
-    pdqi_average: float
+    pdqi_total: float  # Changed from pdqi_average to pdqi_total for 9-45 scoring
     heuristic_analysis: Dict[str, Any]
     factuality_analysis: Dict[str, Any]
     hybrid_score: float
@@ -27,7 +27,7 @@ class GradingViewModel:
                     pdqi_scores[k] = 0.0
         return cls(
             pdqi_scores=pdqi_scores,
-            pdqi_average=float(result.get("pdqi_average", 0)),
+            pdqi_total=float(result.get("pdqi_total", 0)),  # Changed from pdqi_average to pdqi_total
             heuristic_analysis=result.get("heuristic_analysis", {}),
             factuality_analysis=result.get("factuality_analysis", {}),
             hybrid_score=float(result.get("hybrid_score", 0)),

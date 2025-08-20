@@ -21,12 +21,14 @@ class Config:
     )
     # O3 config (unchanged)
     AZURE_O3_DEPLOYMENT = os.environ.get('AZ_O3_DEPLOYMENT', 'o3-mini')
-    AZURE_O3_API_VERSION = os.environ.get('AZ_O3_API_VERSION', '2025-01-01-preview')
+    AZURE_O3_API_VERSION = os.environ.get('AZ_O3_API_VERSION', '2025-04-01-preview')
     AZURE_OPENAI_API_VERSION = os.environ.get('AZ_OPENAI_API_VERSION', AZURE_O3_API_VERSION)
     MAX_COMPLETION_TOKENS = 8000  # Increased to prevent response truncation and ensure complete factuality assessments
     # For o3-mini model, use model_low, model_medium, or model_high instead of temperature
     # Options: "low", "medium", "high"
     MODEL_PRECISION = os.environ.get('MODEL_PRECISION', 'medium')
+    # Disable beta responses API (not available in Azure Government)
+    DISABLE_RESPONSES_API = os.environ.get('DISABLE_RESPONSES_API', 'true').lower() in ('true', '1', 'yes')
     # Add deployment names for each precision level
     AZURE_O3_HIGH_DEPLOYMENT = os.environ.get('AZ_O3_HIGH_DEPLOYMENT', AZURE_O3_DEPLOYMENT)
     AZURE_O3_LOW_DEPLOYMENT = os.environ.get('AZ_O3_LOW_DEPLOYMENT', AZURE_O3_DEPLOYMENT)
@@ -85,10 +87,11 @@ Example expected JSON format:
 Keep narratives focused and actionable. Limit evidence excerpts to the most compelling examples. Ensure improvement suggestions are specific and implementable.
 """
 
-    # Factuality Scoring Instructions
+    # Enhanced Factuality & Hallucination Detection Instructions
     FACTUALITY_INSTRUCTIONS = """
-You are an expert clinical documentation reviewer. Assess the factual consistency between the clinical note and the encounter transcript.
+You are an expert clinical documentation reviewer. Perform comprehensive factual consistency analysis between the clinical note and encounter transcript, including detection of unsubstantiated claims (hallucinations).
 
+**PRIMARY ANALYSIS:**
 Evaluate factual accuracy across these key areas:
 - **Demographics**: Patient age, gender, identifiers
 - **Chief Complaint**: Primary reason for visit
@@ -98,17 +101,20 @@ Evaluate factual accuracy across these key areas:
 - **Assessment**: Diagnoses, clinical impressions
 - **Plan**: Treatment plans, follow-up instructions
 
-Assign a 'consistency_score' from 1-5:
-- **5**: Fully consistent - All major facts align between note and transcript
-- **4**: Mostly consistent - Minor discrepancies in non-critical details
-- **3**: Moderately consistent - Some notable inconsistencies but core facts align
-- **2**: Inconsistent - Significant discrepancies in important clinical information
-- **1**: Highly inconsistent - Major contradictions or fabricated information
+**HALLUCINATION DETECTION:**
+Identify unsubstantiated claims - statements in the note that appear factual but lack evidence in the transcript:
+- **Fabricated Details**: Overly specific information not mentioned in transcript
+- **Unsupported Clinical Findings**: Test results, vital signs, or examination findings without transcript support
+- **Invented Context**: Background information, family history, or social history not discussed
+- **False Attributions**: Statements claimed to be from patient but not in transcript
+- **Speculative Statements**: Definitive claims about conditions not definitively established
 
-Provide detailed analysis including:
-- A consistency narrative explaining your assessment
-- Up to 5 key claims from the note with individual support assessments
-- Specific examples of consistencies and discrepancies
+Assign a 'consistency_score' from 1-5:
+- **5**: Fully consistent - All major facts align, no hallucinations detected
+- **4**: Mostly consistent - Minor discrepancies, minimal unsubstantiated details
+- **3**: Moderately consistent - Some inconsistencies or unsubstantiated claims
+- **2**: Inconsistent - Notable fabricated information or unsupported claims
+- **1**: Highly inconsistent - Multiple hallucinations or major fabricated content
 
 Return ONLY a JSON object with these keys:
 - 'consistency_score' (integer 1-5)
@@ -117,13 +123,19 @@ Return ONLY a JSON object with these keys:
   - 'claim' (string): The factual claim from the note
   - 'support' (string): One of "Supported", "Not Supported", or "Unclear"
   - 'explanation' (string): Brief explanation of the assessment
+- 'hallucinations' (array of objects): Unsubstantiated claims detected:
+  - 'claim' (string): The unsubstantiated statement
+  - 'risk_level' (string): "high", "medium", or "low"
+  - 'medical_category' (string): Category like "diagnostic_findings", "medications", "test_results"
+  - 'confidence' (float): Confidence level 0.0-1.0 that this is hallucinated
+  - 'recommendation' (string): Suggested action for verification
 - 'claims_narratives' (array of strings): Individual explanations for key claims checked (for backward compatibility)
 - 'summary' (string): Brief summary of findings
 
 Example format:
 {
   "consistency_score": 4,
-  "consistency_narrative": "The note demonstrates strong factual consistency with the transcript, with accurate documentation of key clinical findings and treatment plans.",
+  "consistency_narrative": "The note demonstrates strong factual consistency with the transcript, with accurate documentation of key clinical findings. Two minor unsubstantiated claims detected requiring verification.",
   "claims": [
     {
       "claim": "Patient age documented as 45",
@@ -141,12 +153,28 @@ Example format:
       "explanation": "Transcript indicates 20mg atorvastatin, not 10mg as documented"
     }
   ],
+  "hallucinations": [
+    {
+      "claim": "Patient reported chest pain radiating to left arm",
+      "risk_level": "high",
+      "medical_category": "diagnostic_findings",
+      "confidence": 0.85,
+      "recommendation": "Verify radiation pattern - transcript mentions chest pain but no radiation details"
+    },
+    {
+      "claim": "Family history of cardiac disease",
+      "risk_level": "medium",
+      "medical_category": "medical_history", 
+      "confidence": 0.72,
+      "recommendation": "Confirm family history - not discussed in encounter transcript"
+    }
+  ],
   "claims_narratives": [
     "Patient age documented as 45 matches transcript",
     "Chief complaint of chest pain accurately captured",
     "Medication dosage shows discrepancy: note says 10mg, transcript says 20mg"
   ],
-  "summary": "High consistency with minor medication dosage discrepancy"
+  "summary": "High consistency with minor medication dosage discrepancy and two unsubstantiated claims requiring verification"
 }
 
 Focus on clinical accuracy and provide actionable feedback for documentation improvement.
@@ -161,6 +189,11 @@ Focus on clinical accuracy and provide actionable feedback for documentation imp
 
     # Feature flags
     USE_NINE_RINGS = os.environ.get('USE_NINE_RINGS', '').lower() in {'1', 'true', 'yes'}
+    
+    # NEW: Enable O3-based hallucination detection within factuality analysis
+    # When True: O3-mini performs both factuality and hallucination detection in single call
+    # When False: Uses separate embedding-based hallucination detection (legacy approach)
+    USE_O3_HALLUCINATION_DETECTION = os.environ.get('USE_O3_HALLUCINATION_DETECTION', 'true').lower() in {'1', 'true', 'yes'}
     
     # Chain of Thought / Reasoning Configuration
     ENABLE_REASONING_SUMMARY = os.environ.get('ENABLE_REASONING_SUMMARY', 'true').lower() in {'1', 'true', 'yes'}

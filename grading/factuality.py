@@ -72,10 +72,8 @@ def assess_consistency_with_o3(clinical_note: str, encounter_transcript: str, mo
                 # Reasoning requires openai >= 1.52.0 and specific API versions
                 if client_version >= '1.52.0':
                     # Use reasoning_effort parameter for o1/o3/o4 models (correct format)
-                    reasoning_effort = "medium"  # Map from Config.REASONING_SUMMARY_TYPE
-                    if hasattr(Config, 'REASONING_SUMMARY_TYPE'):
-                        effort_map = {"concise": "low", "detailed": "high", "auto": "medium"}
-                        reasoning_effort = effort_map.get(Config.REASONING_SUMMARY_TYPE, "medium")
+                    reasoning_effort = model_precision  # Use the precision passed to the function
+                    logger.info(f"Factuality: Using reasoning effort: {reasoning_effort} (matches precision: {model_precision})")
                     
                     kwargs["reasoning_effort"] = reasoning_effort
                     reasoning_enabled = True
@@ -227,11 +225,19 @@ def assess_consistency_with_o3_enhanced(clinical_note: str, encounter_transcript
         else:
             factuality_model_name = model_name
             
+        # Set max_completion_tokens based on precision level for better response completeness
+        if model_precision == "high":
+            max_tokens = getattr(Config, 'MAX_COMPLETION_TOKENS_HIGH', 32000)
+        elif model_precision == "low":
+            max_tokens = getattr(Config, 'MAX_COMPLETION_TOKENS_LOW', 2000)
+        else:
+            max_tokens = Config.MAX_COMPLETION_TOKENS
+            
         kwargs = {
             "model": factuality_model_name, 
             "messages": messages,
             "response_format": {"type": "json_object"},
-            "max_completion_tokens": Config.MAX_COMPLETION_TOKENS
+            "max_completion_tokens": max_tokens
         }
         
         # Add reasoning parameter for chain of thought summaries (O3/O4 models)
@@ -244,10 +250,8 @@ def assess_consistency_with_o3_enhanced(clinical_note: str, encounter_transcript
                 # Reasoning requires openai >= 1.52.0 and specific API versions
                 if client_version >= '1.52.0':
                     # Use reasoning_effort parameter for o1/o3/o4 models (correct format)
-                    reasoning_effort = "medium"  # Map from Config.REASONING_SUMMARY_TYPE
-                    if hasattr(Config, 'REASONING_SUMMARY_TYPE'):
-                        effort_map = {"concise": "low", "detailed": "high", "auto": "medium"}
-                        reasoning_effort = effort_map.get(Config.REASONING_SUMMARY_TYPE, "medium")
+                    reasoning_effort = model_precision  # Use the precision passed to the function
+                    logger.info(f"Factuality: Using reasoning effort: {reasoning_effort} (matches precision: {model_precision})")
                     
                     kwargs["reasoning_effort"] = reasoning_effort
                     reasoning_enabled = True
@@ -270,13 +274,18 @@ def assess_consistency_with_o3_enhanced(clinical_note: str, encounter_transcript
             else:
                 raise
         
+        # Extract content with better error handling
+        if not response or not response.choices or not response.choices[0].message:
+            logger.error("Invalid response structure from enhanced factuality check.")
+            return _fallback_factuality_response()
+        
         raw_content = response.choices[0].message.content
         if raw_content is None:
             logger.error("Received None content from enhanced factuality check.")
             return _fallback_factuality_response()
         
         content = raw_content.strip()
-        logger.info(f"Enhanced factuality response content: {content[:200]}...")
+        logger.info(f"Enhanced factuality response content: {content[:100]}...")
 
         if not content:
             logger.error("Empty response from enhanced factuality check.")
@@ -295,6 +304,23 @@ def assess_consistency_with_o3_enhanced(clinical_note: str, encounter_transcript
             consistency_narrative = str(score_data.get('consistency_narrative', ''))
             claims_narratives = score_data.get('claims_narratives', [])
             summary = str(score_data.get('summary', ''))
+            
+            # Extract hallucinations from O3-mini response (NEW)
+            hallucinations_data = score_data.get('hallucinations', [])
+            processed_hallucinations = []
+            
+            if isinstance(hallucinations_data, list):
+                for hall_data in hallucinations_data:
+                    if isinstance(hall_data, dict):
+                        # Validate and process hallucination data
+                        processed_hall = {
+                            'claim': str(hall_data.get('claim', 'Unknown claim')),
+                            'risk_level': str(hall_data.get('risk_level', 'medium')),
+                            'medical_category': str(hall_data.get('medical_category', 'general')),
+                            'confidence': float(hall_data.get('confidence', 0.5)),
+                            'recommendation': str(hall_data.get('recommendation', ''))
+                        }
+                        processed_hallucinations.append(processed_hall)
             
             # Validate claims_narratives without truncation
             if isinstance(claims_narratives, list):
@@ -347,6 +373,7 @@ def assess_consistency_with_o3_enhanced(clinical_note: str, encounter_transcript
                 'claims_checked': len(claims) if claims else (len(validated_claims_narratives) if validated_claims_narratives else 1),
                 'summary': summary or f"Factuality assessment completed with score {consistency_score}",
                 'claims': claims,  # Elite Python: Enhanced claims structure with proper validation
+                'hallucinations': processed_hallucinations,  # NEW: O3-mini detected hallucinations
                 'consistency_narrative': consistency_narrative,
                 'claims_narratives': validated_claims_narratives
                 # reasoning_summary kept internal only per user requirements
@@ -367,6 +394,7 @@ def _fallback_factuality_response() -> Dict[str, Any]:
         'claims_checked': 0,
         'summary': "Factuality assessment failed, neutral score assigned",
         'claims': [],  # Elite Python: Empty lists maintain consistency
+        'hallucinations': [],  # NEW: Empty hallucinations list for consistency
         'consistency_narrative': "",
         'claims_narratives': []  # Elite Python: Empty lists maintain consistency
         # reasoning_summary kept internal only per user requirements
@@ -383,6 +411,7 @@ def analyze_factuality(clinical_note: str, encounter_transcript: str = "", model
             'claims_checked': 0,
             'summary': "No transcript provided for factuality analysis",
             'claims': [],  # Elite Python: Consistent empty structure
+            'hallucinations': [],  # NEW: Empty hallucinations for consistency
             'consistency_narrative': "",
             'claims_narratives': []  # Elite Python: Consistent empty structure
             # reasoning_summary kept internal only per user requirements
@@ -398,6 +427,9 @@ def analyze_factuality(clinical_note: str, encounter_transcript: str = "", model
         # Return enhanced format with narrative explanations
         return raw_response
         
+    except OpenAIAuthError:
+        # Re-raise authentication errors - these indicate configuration issues
+        raise
     except Exception as e:
         logger.error(f"Enhanced factuality analysis failed, falling back to basic score: {e}")
         # Fallback to basic O3 assessment
@@ -411,6 +443,7 @@ def analyze_factuality(clinical_note: str, encounter_transcript: str = "", model
             'claims_checked': 1,
             'summary': f"Basic consistency assessment completed with score {o3_consistency_score}",
             'claims': [],  # Elite Python: Maintain data consistency
+            'hallucinations': [],  # NEW: Empty hallucinations for consistency
             'consistency_narrative': "",
             'claims_narratives': []  # Elite Python: Maintain data consistency
             # reasoning_summary kept internal only per user requirements

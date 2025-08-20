@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Counter Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div class="max-w-4xl mx-auto p-6">
+        <h1 class="text-2xl font-bold mb-6">Character Counter Test</h1>
+        
+        <!-- Clinical Note -->
+        <div class="space-y-2 mb-6">
+            <label for="clinical_note" class="block text-sm font-semibold text-gray-700">
+                Clinical Note <span class="text-red-500">*</span>
+            </label>
+            <textarea 
+                id="clinical_note" 
+                name="clinical_note" 
+                rows="8" 
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                placeholder="Paste your clinical note here to test character counting..."
+                maxlength="20000"
+            >Patient presents with chest pain and shortness of breath. Examination reveals elevated heart rate and blood pressure. Recommended further cardiac evaluation including ECG and chest X-ray. Patient advised to follow up in 48 hours if symptoms persist or worsen.</textarea>
+            
+            <!-- Character counter -->
+            <div class="flex justify-between items-center text-sm">
+                <p class="text-gray-500">Maximum 20,000 characters</p>
+                <span id="char-counter" class="text-gray-400">0 / 20,000</span>
+            </div>
+        </div>
+
+        <!-- Encounter Transcript -->
+        <div class="space-y-2 mb-6">
+            <label for="encounter_transcript" class="block text-sm font-semibold text-gray-700">
+                Encounter Transcript <span class="text-gray-400 font-normal">(Optional)</span>
+            </label>
+            <textarea 
+                id="encounter_transcript" 
+                name="encounter_transcript" 
+                rows="6" 
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                placeholder="Paste encounter transcript here..."
+                maxlength="40000"
+            >Doctor: How are you feeling today? Patient: I've been having chest pain since yesterday. Doctor: Can you describe the pain? Patient: It's sharp and radiates to my left arm.</textarea>
+            
+            <!-- Character counter for transcript -->
+            <div class="flex justify-between items-center text-sm">
+                <p class="text-gray-500">Maximum 40,000 characters</p>
+                <span id="transcript-char-counter" class="text-gray-400">0 / 40,000</span>
+            </div>
+        </div>
+
+        <!-- Submit button -->
+        <button
+            type="button"
+            id="submitButton" 
+            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 px-6 rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-semibold text-lg transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+            <span id="submit-text">🧠 Analyze Clinical Note</span>
+        </button>
+
+        <!-- Status display -->
+        <div id="status" class="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h3 class="font-semibold">Status:</h3>
+            <div id="status-content">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const clinicalNote = document.getElementById('clinical_note');
+        const encounterTranscript = document.getElementById('encounter_transcript');
+        const charCounter = document.getElementById('char-counter');
+        const transcriptCharCounter = document.getElementById('transcript-char-counter');
+        const submitButton = document.getElementById('submitButton');
+        const submitText = document.getElementById('submit-text');
+        const statusContent = document.getElementById('status-content');
+        
+        // Character counter with warnings
+        function updateCharCounter() {
+            if (!clinicalNote || !charCounter) {
+                console.error('Clinical note elements not found');
+                statusContent.innerHTML = '<span class="text-red-600">❌ Clinical note elements not found</span>';
+                return;
+            }
+            
+            const length = clinicalNote.value.length;
+            charCounter.textContent = `${length.toLocaleString()} / 20,000`;
+            
+            // Update styling based on character count
+            if (length > 20000) {
+                charCounter.className = 'text-red-600 font-bold';
+            } else if (length > 18000) {
+                charCounter.className = 'text-orange-500 font-medium';
+            } else {
+                charCounter.className = 'text-gray-400';
+            }
+            
+            updateSubmitButton();
+        }
+        
+        // Character counter for transcript
+        function updateTranscriptCharCounter() {
+            if (!encounterTranscript || !transcriptCharCounter) {
+                console.error('Transcript elements not found');
+                statusContent.innerHTML = '<span class="text-red-600">❌ Transcript elements not found</span>';
+                return;
+            }
+            
+            const length = encounterTranscript.value.length;
+            transcriptCharCounter.textContent = `${length.toLocaleString()} / 40,000`;
+            
+            // Update styling based on character count
+            if (length > 40000) {
+                transcriptCharCounter.className = 'text-red-600 font-bold';
+            } else if (length > 36000) {
+                transcriptCharCounter.className = 'text-orange-500 font-medium';
+            } else {
+                transcriptCharCounter.className = 'text-gray-400';
+            }
+            
+            updateSubmitButton();
+        }
+        
+        function updateSubmitButton() {
+            if (!clinicalNote || !encounterTranscript || !submitButton || !submitText) {
+                return;
+            }
+            
+            const noteLength = clinicalNote.value.length;
+            const transcriptLength = encounterTranscript.value.length;
+            const isOverLimit = noteLength > 20000 || transcriptLength > 40000;
+            
+            submitButton.disabled = isOverLimit;
+            
+            if (isOverLimit) {
+                submitButton.className = submitButton.className.replace('from-blue-600 to-blue-700', 'from-gray-400 to-gray-500');
+                submitText.textContent = '❌ Character Limit Exceeded';
+            } else {
+                submitButton.className = submitButton.className.replace('from-gray-400 to-gray-500', 'from-blue-600 to-blue-700');
+                submitText.textContent = '🧠 Analyze Clinical Note';
+            }
+        }
+        
+        // Add event listeners
+        clinicalNote.addEventListener('input', updateCharCounter);
+        encounterTranscript.addEventListener('input', updateTranscriptCharCounter);
+        
+        // Function to initialize and verify all elements are working
+        function initializeCharacterCounters() {
+            console.log('Initializing character counters...');
+            
+            // Check if all required elements exist
+            const requiredElements = {
+                clinicalNote,
+                encounterTranscript,
+                charCounter,
+                transcriptCharCounter,
+                submitButton,
+                submitText
+            };
+            
+            const missingElements = Object.entries(requiredElements)
+                .filter(([name, element]) => !element)
+                .map(([name]) => name);
+                
+            if (missingElements.length > 0) {
+                console.error('Missing elements:', missingElements);
+                statusContent.innerHTML = `<span class="text-red-600">❌ Missing elements: ${missingElements.join(', ')}</span>`;
+                return false;
+            }
+            
+            // Initialize counters
+            try {
+                updateCharCounter();
+                updateTranscriptCharCounter();
+                
+                const noteLength = clinicalNote.value.length;
+                const transcriptLength = encounterTranscript.value.length;
+                
+                statusContent.innerHTML = `
+                    <span class="text-green-600">✅ Character counters initialized successfully</span><br>
+                    <span class="text-sm text-gray-600">Clinical note: ${noteLength.toLocaleString()} chars</span><br>
+                    <span class="text-sm text-gray-600">Transcript: ${transcriptLength.toLocaleString()} chars</span>
+                `;
+                
+                console.log('Character counters initialized successfully');
+                console.log('Clinical note length:', noteLength);
+                console.log('Transcript length:', transcriptLength);
+                return true;
+            } catch (error) {
+                console.error('Error initializing character counters:', error);
+                statusContent.innerHTML = `<span class="text-red-600">❌ Error: ${error.message}</span>`;
+                return false;
+            }
+        }
+        
+        // Initialize immediately
+        initializeCharacterCounters();
+        
+        // Also initialize after a small delay as backup
+        setTimeout(initializeCharacterCounters, 100);
+    });
+    </script>
+</body>
+</html>

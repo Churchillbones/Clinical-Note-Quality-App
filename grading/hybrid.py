@@ -60,7 +60,8 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "", model_
                 pass  # leave as-is if not convertible
     # Only sum numeric values (exclude 'summary' and any non-numeric entries)
     pdqi_numeric_scores = [v for k, v in pdqi_scores.items() if isinstance(v, (int, float))]
-    pdqi_average = sum(pdqi_numeric_scores) / len(pdqi_numeric_scores) if pdqi_numeric_scores else 0
+    pdqi_total = sum(pdqi_numeric_scores) if pdqi_numeric_scores else 0
+    pdqi_average = pdqi_total / len(pdqi_numeric_scores) if pdqi_numeric_scores else 0
     
     # Auto-generate a concise narrative summary if missing or empty
     def _generate_pdqi_summary(scores_dict):
@@ -122,19 +123,28 @@ def grade_note_hybrid(clinical_note: str, encounter_transcript: str = "", model_
 
     chain_of_thought = "\n\n".join(chain_of_thought_parts)
 
-    # Calculate weighted hybrid score
+    # Calculate weighted hybrid score using PDQI total sum (normalized to 1-5 scale)
+    pdqi_normalized = pdqi_total / 9.0  # Convert 9-45 scale to 1-5 scale
     hybrid_score = (
-        pdqi_average * Config.PDQI_WEIGHT +
+        pdqi_normalized * Config.PDQI_WEIGHT +
         heuristic_score * Config.HEURISTIC_WEIGHT +
         factuality_score * Config.FACTUALITY_WEIGHT
     )
+    
+    # Add scoring methodology explanation to chain of thought
+    scoring_explanation = f"\nScoring Methodology:\nPDQI Sum ({Config.PDQI_WEIGHT}) × {pdqi_total:.0f}/45→{pdqi_normalized:.2f} + Heuristic ({Config.HEURISTIC_WEIGHT}) × {heuristic_score:.2f} + Factuality ({Config.FACTUALITY_WEIGHT}) × {factuality_score:.2f} = {hybrid_score:.2f}"
+    if chain_of_thought:
+        chain_of_thought += scoring_explanation
+    else:
+        chain_of_thought = scoring_explanation.strip()
     
     # Ensure score is in valid range
     hybrid_score = max(1.0, min(5.0, hybrid_score))
     
     result = {
         'pdqi_scores': pdqi_scores,
-        'pdqi_average': round(pdqi_average, 2),
+        'pdqi_total': round(pdqi_total, 2),  # Changed from pdqi_average to pdqi_total for 9-45 scoring
+        'pdqi_average': round(pdqi_average, 2),  # Keep for backward compatibility
         'heuristic_analysis': {
             'length_score': round(heuristics['length_score'], 2),
             'redundancy_score': round(heuristics['redundancy_score'], 2),

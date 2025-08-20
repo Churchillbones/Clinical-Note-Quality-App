@@ -96,17 +96,19 @@
                     <span class="text-gray-400 font-normal">(Optional)</span>
                 </label>
                 <textarea 
-                    id="encounter_transcript" 
-                    name="encounter_transcript" 
+                    id="encounter_transcript"
+                    name="encounter_transcript"
                     rows="6" 
                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:border-transparent transition-all resize-none"
                     placeholder="Paste the encounter transcript here to enable advanced factuality analysis..."
-                    maxlength="20000"
+                    maxlength="40000"
                     aria-describedby="transcript-help"
                 ></textarea>
-                <p id="transcript-help" class="text-sm text-gray-500">
-                    Used for cross-referencing and factuality verification when provided.
-                </p>
+                <!-- Character counter for transcript -->
+                <div class="flex justify-between items-center text-sm">
+                    <p id="transcript-help" class="text-gray-500">Used for cross-referencing and factuality verification when provided. Maximum 40,000 characters</p>
+                    <span id="transcript-char-counter" class="text-gray-400">0 / 40,000</span>
+                </div>
             </div>
 
             <!-- Model Precision -->
@@ -271,36 +273,241 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const clinicalNote = document.getElementById('clinical_note');
+    const encounterTranscript = document.getElementById('encounter_transcript');
     const charCounter = document.getElementById('char-counter');
+    const transcriptCharCounter = document.getElementById('transcript-char-counter');
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const submitButton = document.getElementById('submitButton');
     const submitText = document.getElementById('submit-text');
     
-    // Character counter
+    // Character counter with warnings
     function updateCharCounter() {
+        if (!clinicalNote || !charCounter) {
+            console.error('Clinical note elements not found');
+            return;
+        }
+        
         const length = clinicalNote.value.length;
-        charCounter.textContent = `${length.toLocaleString()} / 20,000`;
-        charCounter.className = length > 18000 ? 'text-red-500 font-medium' : 'text-gray-400';
+        const formatted = length.toLocaleString();
+        charCounter.textContent = `${formatted} / 20,000`;
+        
+        console.log('Updating clinical note counter:', length, 'characters');
+        
+        // Update color based on length
+        if (length > 20000) {
+            charCounter.classList.remove('text-gray-400', 'text-orange-500');
+            charCounter.classList.add('text-red-600', 'font-bold');
+            showCharacterWarning('exceeds', 'clinical_note');
+        } else if (length > 18000) {
+            charCounter.classList.remove('text-gray-400', 'text-red-600', 'font-bold');
+            charCounter.classList.add('text-orange-500', 'font-medium');
+            showCharacterWarning('approaching', 'clinical_note');
+        } else {
+            charCounter.classList.remove('text-orange-500', 'text-red-600', 'font-bold', 'font-medium');
+            charCounter.classList.add('text-gray-400');
+            hideCharacterWarning('clinical_note');
+        }
+        
+        // Disable/enable submit button based on character limit
+        updateSubmitButton();
     }
-    clinicalNote.addEventListener('input', updateCharCounter);
     
-    // Precision selection
+    // Character counter for transcript
+    function updateTranscriptCharCounter() {
+        if (!encounterTranscript || !transcriptCharCounter) {
+            console.error('Transcript elements not found');
+            return;
+        }
+        
+        const length = encounterTranscript.value.length;
+        const formatted = length.toLocaleString();
+        transcriptCharCounter.textContent = `${formatted} / 40,000`;
+        
+        console.log('Updating transcript counter:', length, 'characters');
+        
+        // Update color based on length
+        if (length > 40000) {
+            transcriptCharCounter.classList.remove('text-gray-400', 'text-orange-500');
+            transcriptCharCounter.classList.add('text-red-600', 'font-bold');
+            showCharacterWarning('exceeds', 'encounter_transcript');
+        } else if (length > 36000) {
+            transcriptCharCounter.classList.remove('text-gray-400', 'text-red-600', 'font-bold');
+            transcriptCharCounter.classList.add('text-orange-500', 'font-medium');
+            showCharacterWarning('approaching', 'encounter_transcript');
+        } else {
+            transcriptCharCounter.classList.remove('text-orange-500', 'text-red-600', 'font-bold', 'font-medium');
+            transcriptCharCounter.classList.add('text-gray-400');
+            hideCharacterWarning('encounter_transcript');
+        }
+        
+        // Disable/enable submit button based on character limit
+        updateSubmitButton();
+    }
+    
+    function showCharacterWarning(type, fieldType) {
+        const maxLimit = fieldType === 'encounter_transcript' ? 40000 : 20000;
+        const warningId = `char-warning-${fieldType}`;
+        let existingWarning = document.getElementById(warningId);
+        if (existingWarning) {
+            existingWarning.remove();
+        }
+        
+        const field = document.getElementById(fieldType);
+        const length = field.value.length;
+        const fieldName = fieldType === 'clinical_note' ? 'clinical note' : 'encounter transcript';
+        const warningDiv = document.createElement('div');
+        warningDiv.id = warningId;
+        
+        if (type === 'exceeds') {
+            warningDiv.className = 'bg-red-50 border-l-4 border-red-400 p-3 mt-2';
+            warningDiv.innerHTML = `
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">Character Limit Exceeded</h3>
+                        <p class="text-sm text-red-700 mt-1">Your ${fieldName} has ${length.toLocaleString()} characters, which exceeds the maximum limit of ${maxLimit.toLocaleString()} characters. Please reduce the content by ${(length - maxLimit).toLocaleString()} characters before submitting.</p>
+                    </div>
+                </div>
+            `;
+        } else if (type === 'approaching') {
+            warningDiv.className = 'bg-orange-50 border-l-4 border-orange-400 p-3 mt-2';
+            warningDiv.innerHTML = `
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-orange-800">Approaching Character Limit</h3>
+                        <p class="text-sm text-orange-700 mt-1">Your ${fieldName} has ${(maxLimit - length).toLocaleString()} characters remaining. Consider reviewing for conciseness.</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Insert warning after the field's parent container
+        const fieldContainer = field.parentElement;
+        fieldContainer.appendChild(warningDiv);
+    }
+    
+    function hideCharacterWarning(fieldType) {
+        const existingWarning = document.getElementById(`char-warning-${fieldType}`);
+        if (existingWarning) {
+            existingWarning.remove();
+        }
+    }
+    
+    function updateSubmitButton() {
+        const noteLength = clinicalNote.value.length;
+        const transcriptLength = encounterTranscript.value.length;
+        const isOverLimit = noteLength > 20000 || transcriptLength > 40000;
+        
+        submitButton.disabled = isOverLimit;
+        
+        if (isOverLimit) {
+            submitButton.className = submitButton.className.replace('from-clinical-600 to-clinical-700', 'from-gray-400 to-gray-500');
+            submitText.textContent = '❌ Character Limit Exceeded';
+        } else {
+            submitButton.className = submitButton.className.replace('from-gray-400 to-gray-500', 'from-clinical-600 to-clinical-700');
+            submitText.textContent = '🧠 Analyze Clinical Note';
+        }
+    }
+    
+    clinicalNote.addEventListener('input', updateCharCounter);
+    encounterTranscript.addEventListener('input', updateTranscriptCharCounter);
+    
+    // Simple, robust initialization - call immediately and with multiple fallbacks
+    function initializeCounters() {
+        console.log('Initializing character counters...');
+        
+        if (clinicalNote && charCounter) {
+            const noteLength = clinicalNote.value.length;
+            console.log('Clinical note has', noteLength, 'characters');
+            updateCharCounter();
+        }
+        
+        if (encounterTranscript && transcriptCharCounter) {
+            const transcriptLength = encounterTranscript.value.length;
+            console.log('Transcript has', transcriptLength, 'characters');
+            updateTranscriptCharCounter();
+        }
+    }
+    
+    // Initialize immediately
+    initializeCounters();
+    
+    // Initialize with delays as fallbacks
+    setTimeout(initializeCounters, 50);
+    setTimeout(initializeCounters, 200);
+    setTimeout(initializeCounters, 500);
+    
+    // Precision selection - Enhanced with better debugging and error handling
     document.querySelectorAll('.precision-option').forEach(option => {
-        option.addEventListener('click', function() {
+        option.addEventListener('click', function(event) {
+            // Prevent any default behavior
+            event.preventDefault();
+            
             // Remove active state from all options
             document.querySelectorAll('.precision-card').forEach(card => {
-                card.className = card.className.replace(/border-clinical-500|bg-clinical-50/, 'border-gray-200');
+                card.classList.remove('border-clinical-500', 'bg-clinical-50');
+                card.classList.add('border-gray-200');
+                // Update text colors for unselected state
+                card.querySelector('.text-clinical-700')?.classList.replace('text-clinical-700', 'text-gray-700');
+                card.querySelector('.text-clinical-600')?.classList.replace('text-clinical-600', 'text-gray-500');
+                card.querySelector('.text-clinical-500')?.classList.replace('text-clinical-500', 'text-gray-400');
             });
             
             // Add active state to selected option
             const card = this.querySelector('.precision-card');
-            card.className = card.className.replace('border-gray-200', 'border-clinical-500 bg-clinical-50');
+            if (card) {
+                card.classList.remove('border-gray-200');
+                card.classList.add('border-clinical-500', 'bg-clinical-50');
+                // Update text colors for selected state
+                card.querySelector('.text-gray-700')?.classList.replace('text-gray-700', 'text-clinical-700');
+                card.querySelector('.text-gray-500')?.classList.replace('text-gray-500', 'text-clinical-600');
+                card.querySelector('.text-gray-400')?.classList.replace('text-gray-400', 'text-clinical-500');
+            }
             
             // Check the radio button
-            this.querySelector('input[type="radio"]').checked = true;
+            const radioButton = this.querySelector('input[type="radio"]');
+            if (radioButton) {
+                // Uncheck all radio buttons first
+                document.querySelectorAll('input[name="model_precision"]').forEach(rb => rb.checked = false);
+                radioButton.checked = true;
+                console.log('Precision selected:', radioButton.value);
+                
+                // Dispatch a change event for any listeners
+                radioButton.dispatchEvent(new Event('change', { bubbles: true }));
+            }
         });
+        
+        // Also handle keyboard navigation
+        option.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                this.click();
+            }
+        });
+        
+        // Make the label focusable for keyboard navigation
+        option.setAttribute('tabindex', '0');
+        option.setAttribute('role', 'radio');
     });
+    
+    // Initialize proper state on page load
+    const checkedOption = document.querySelector('input[name="model_precision"]:checked');
+    if (checkedOption) {
+        const parentLabel = checkedOption.closest('.precision-option');
+        if (parentLabel) {
+            parentLabel.click(); // This will set up the proper visual state
+        }
+    }
     
     // Drag and drop functionality
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -349,13 +556,46 @@ document.addEventListener('DOMContentLoaded', function() {
             if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    clinicalNote.value = e.target.result;
-                    updateCharCounter();
-                    // Show success feedback
-                    dropZone.style.borderColor = '#10b981';
-                    setTimeout(() => {
-                        dropZone.style.borderColor = '';
-                    }, 2000);
+                    const content = e.target.result;
+                    if (content.length > 20000) {
+                        // Show error for oversized file
+                        dropZone.style.borderColor = '#ef4444';
+                        const warningDiv = document.createElement('div');
+                        warningDiv.className = 'bg-red-50 border-l-4 border-red-400 p-3 mt-2';
+                        warningDiv.innerHTML = `
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-red-800">File Too Large</h3>
+                                    <p class="text-sm text-red-700 mt-1">The uploaded file contains ${content.length.toLocaleString()} characters, exceeding the 20,000 character limit. Please use a smaller file or edit the content before uploading.</p>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Remove existing warnings first
+                        const existingWarnings = document.querySelectorAll('[id^="char-warning"]');
+                        existingWarnings.forEach(w => w.remove());
+                        
+                        // Insert warning after the drop zone
+                        dropZone.parentElement.appendChild(warningDiv);
+                        
+                        setTimeout(() => {
+                            dropZone.style.borderColor = '';
+                            warningDiv.remove();
+                        }, 5000);
+                    } else {
+                        clinicalNote.value = content;
+                        updateCharCounter();
+                        // Show success feedback
+                        dropZone.style.borderColor = '#10b981';
+                        setTimeout(() => {
+                            dropZone.style.borderColor = '';
+                        }, 2000);
+                    }
                 };
                 reader.readAsText(file);
             } else {
@@ -408,5 +648,6 @@ function handleFormComplete() {
         progressBar.style.width = '0%';
     }, 1000);
 }
+
 </script>
 {% endblock %} 

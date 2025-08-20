@@ -12,21 +12,28 @@ from collections import Counter
 logger = logging.getLogger(__name__)
 
 def calculate_length_score(text: str) -> float:
-    """Calculate length appropriateness score (0-5)."""
-    word_count = len(text.split())
+    """Calculate length appropriateness score (0-5) based on character count.
     
-    if word_count < 50:
-        return 1.0  # Too short
-    elif word_count < 100:
-        return 2.0  # Short but acceptable
-    elif word_count <= 500:
-        return 5.0  # Optimal range
-    elif word_count <= 800:
-        return 4.0  # Getting long
-    elif word_count <= 1200:
-        return 3.0  # Long
+    Based on large-scale EHR analyses showing average clinical notes are ~5,000 characters
+    (up from ~4,600 in 2020). Optimal range is 4,600-5,000 characters for comprehensive
+    yet appropriate clinical documentation.
+    """
+    char_count = len(text)
+    
+    if char_count < 2000:
+        return 1.0  # Too short - insufficient clinical detail
+    elif char_count < 3000:
+        return 2.0  # Short but may be acceptable for simple cases
+    elif char_count < 4600:
+        return 3.0  # Below optimal but adequate
+    elif char_count <= 5000:
+        return 5.0  # Optimal range - comprehensive yet appropriate
+    elif char_count <= 6500:
+        return 4.0  # Getting long but still manageable
+    elif char_count <= 8000:
+        return 3.0  # Long - may contain redundancies
     else:
-        return 1.0  # Too long
+        return 1.0  # Too long - likely contains excessive redundancy
 
 def calculate_redundancy_score(text: str) -> float:
     """Calculate redundancy score based on repeated phrases (0-5)."""

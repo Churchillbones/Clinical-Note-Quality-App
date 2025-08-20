@@ -121,9 +121,17 @@ class PDQIScore:
                 raise ValueError(f"Dimension explanations mismatch. Expected: {expected_dims}, got: {explanation_dims}")
 
     @property
-    def average(self) -> float:
+    def total(self) -> float:
+        """Return the total PDQI score (9-45 scale)."""
         numeric = [float(self.scores[k]) for k in PDQIDimension.numeric_keys()]
-        return sum(numeric) / len(numeric)
+        return sum(numeric)
+    
+    @property  
+    def average(self) -> float:
+        """Return the average PDQI score (1-5 scale) - DEPRECATED, use total instead."""
+        import warnings
+        warnings.warn("PDQIScore.average is deprecated, use PDQIScore.total instead", DeprecationWarning, stacklevel=2)
+        return self.total / 9.0
 
     def to_dict(self) -> Dict[str, Any]:
         ret: Dict[str, Any] = dict(self.scores)
@@ -192,14 +200,17 @@ class FactualityResult:
     claims_checked: int
     summary: str = ""
     claims: List[Dict[str, Any]] = field(default_factory=list)
+    hallucinations: List[Dict[str, Any]] = field(default_factory=list)  # NEW: O3-detected hallucinations
     consistency_narrative: str = ""
     claims_narratives: List[str] = field(default_factory=list)
     reasoning_summary: str = ""  # Chain of thought reasoning summary
 
     def __post_init__(self) -> None:  # type: ignore[override]
         """Validate narrative fields structure."""
-        if self.claims_narratives and len(self.claims_narratives) != len(self.claims):
-            raise ValueError(f"Claims narratives length ({len(self.claims_narratives)}) must match claims length ({len(self.claims)})")
+        # Allow claims_narratives to be empty or have fewer entries than claims for backward compatibility
+        # but if both are non-empty, claims_narratives should not exceed claims length
+        if self.claims_narratives and self.claims and len(self.claims_narratives) > len(self.claims):
+            raise ValueError(f"Claims narratives length ({len(self.claims_narratives)}) cannot exceed claims length ({len(self.claims)})")
 
     def to_dict(self) -> Dict[str, Any]:
         result = asdict(self)
@@ -216,7 +227,7 @@ class FactualityResult:
 
 @dataclass(frozen=True)
 class HybridResult:
-    """Aggregate of PDQI, heuristic, and factuality analyses."""
+    """Aggregate of PDQI, heuristic, factuality, and embedding analyses."""
 
     pdqi: PDQIScore
     heuristic: HeuristicResult
@@ -229,6 +240,9 @@ class HybridResult:
     component_weighting_explanation: str = ""
     reasoning_summary: str = ""  # Aggregate reasoning summary from all components
     reasoning_analysis_log: str = ""  # 🧠 AI Reasoning Process Analysis Log
+    
+    # Week 2: Embedding-based analysis results
+    discrepancy_analysis: Dict[str, Any] = field(default_factory=dict)  # Combined embedding analysis
 
     def __post_init__(self) -> None:  # type: ignore[override]
         """Validate narrative fields."""
@@ -310,7 +324,7 @@ class HybridResult:
         """Serialise for JSON responses."""
         result = {
             "pdqi_scores": self.pdqi.to_dict(),
-            "pdqi_average": round(self.pdqi.average, 2),
+            "pdqi_total": round(self.pdqi.total, 2),
             "heuristic_analysis": self.heuristic.to_dict(),
             "factuality_analysis": self.factuality.to_dict(),
             "hybrid_score": self.hybrid_score,
